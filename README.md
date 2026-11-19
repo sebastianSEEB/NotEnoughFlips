@@ -52,7 +52,7 @@ The mod reads public data only:
 
 - the Hypixel API;
 - [SkyCofl](https://sky.coflnet.com) price history;
-- this repo's data site (`https://sebastianseeb.github.io/not-enough-flips/data`).
+- this repo's data site (`https://sebastianseeb.github.io/NotEnoughFlips/data`).
 
 GitHub Actions rebuilds the data site from public APIs:
 

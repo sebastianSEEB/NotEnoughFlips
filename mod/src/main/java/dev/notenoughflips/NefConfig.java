@@ -17,7 +17,7 @@ final class NefConfig {
 	/** Optional: your own local price server (advanced). Empty = not used. */
 	String localServer = "";
 	/** Public data site (bazaar signals, craft flips, bazaar history + forecasts), rebuilt by GitHub Actions. */
-	String dataUrl = "https://sebastianseeb.github.io/not-enough-flips/data";
+	String dataUrl = "https://sebastianseeb.github.io/NotEnoughFlips/data";
 	/**
 	 * Your own Hypixel API key, only for the bidders' coins panel (/nef apikey <key>). Stored in this file on your PC and
 	 * only ever sent to api.hypixel.net. Leave empty to skip that panel.

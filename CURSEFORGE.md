@@ -88,4 +88,4 @@ The mod reads public market data and displays it. Using any mod on a server is a
 
 ---
 
-<sub>Open source (MIT with credit): [GitHub](https://github.com/sebastianSEEB/not-enough-flips) · [Report a bug](https://github.com/sebastianSEEB/not-enough-flips/issues) · Not affiliated with Hypixel, Mojang or Microsoft.</sub>
+<sub>Open source (MIT with credit): [GitHub](https://github.com/sebastianSEEB/NotEnoughFlips) · [Report a bug](https://github.com/sebastianSEEB/NotEnoughFlips/issues) · Not affiliated with Hypixel, Mojang or Microsoft.</sub>

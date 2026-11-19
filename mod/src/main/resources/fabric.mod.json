@@ -6,9 +6,9 @@
 	"description": "Hypixel SkyBlock trading helper: item values and verdicts in tooltips, AH and bazaar flip finder, snipe alerts, bid helper, bazaar signals and a trade desk. Shows information only - you make every trade yourself.",
 	"authors": ["sebastianSEEB"],
 	"contact": {
-		"homepage": "https://github.com/sebastianSEEB/not-enough-flips",
-		"sources": "https://github.com/sebastianSEEB/not-enough-flips",
-		"issues": "https://github.com/sebastianSEEB/not-enough-flips/issues"
+		"homepage": "https://github.com/sebastianSEEB/NotEnoughFlips",
+		"sources": "https://github.com/sebastianSEEB/NotEnoughFlips",
+		"issues": "https://github.com/sebastianSEEB/NotEnoughFlips/issues"
 	},
 	"license": "MIT (with credit)",
 	"icon": "assets/notenoughflips/icon.png",
