@@ -38,6 +38,26 @@ final class LocalForecast {
 		return s;
 	}
 
+	/**
+	 * Bazaar forecast made on your PC from the product's SkyCofl week ({time, buy, sell} 2 h bars), used when the data
+	 * site has none (its hourly history depends on GitHub's scheduler, which can lag by hours). Queues the week if needed.
+	 */
+	static Forecasts.Side forBazaar(String id, String side, DataClient data) {
+		if (id == null || data == null) return null;
+		long now = System.currentTimeMillis();
+		String ck = id + "|" + side;
+		Cached c = cache.get(ck);
+		if (c != null && now - c.at() < 30 * 60_000L) return c.side();
+		List<double[]> wk = data.bazaarWeek(id);
+		if (wk == null) { data.bazaarSlide(id); return null; }
+		int col = "buy".equals(side) ? 1 : 2;
+		List<double[]> pts = new ArrayList<>();
+		for (double[] q : wk) if (q[col] > 0) pts.add(new double[]{q[0], 0, 0, q[col], 1});
+		Forecasts.Side s = of(hourly(pts));
+		cache.put(ck, new Cached(now, s));
+		return s;
+	}
+
 	/** [time, min, max, avg, volume] periods → one average per hour, gaps carried forward. */
 	static double[] hourly(List<double[]> week) {
 		if (week.isEmpty()) return new double[0];

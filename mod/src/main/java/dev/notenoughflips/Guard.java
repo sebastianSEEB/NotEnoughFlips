@@ -131,6 +131,52 @@ final class Guard {
 		return null;
 	}
 
+	// ------------------------------------------------------------------ AH: your own listing
+	private static final java.util.regex.Pattern PRICE_LINE = java.util.regex.Pattern.compile(
+			"(?i)(?:item price|price|starting bid)\\s*:\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*coins");
+
+	/**
+	 * "Create BIN Auction": your price vs the lowest BIN of that item. ≥ 20 % under it (a typo or a misclick costs you
+	 * the difference) → red; ≥ 50 % over it → amber (it won't sell). {slot index of the price button, Warn} or null.
+	 */
+	static Object[] listing(AbstractContainerScreen<?> acs, String title) {
+		if (!title.contains("create") || !title.contains("auction")) return null;
+		List<Slot> slots = acs.getMenu().slots;
+		Double price = null;
+		int priceSlot = -1;
+		ItemStack item = null;
+		for (int i = 0; i < slots.size(); i++) {
+			ItemStack st = slots.get(i).getItem();
+			if (st == null || st.isEmpty()) continue;
+			ItemLore lore = st.get(DataComponents.LORE);
+			if (lore != null && price == null) {
+				for (Component c : lore.lines()) {
+					java.util.regex.Matcher m = PRICE_LINE.matcher(c.getString().replaceAll("§.", ""));
+					if (m.find()) { price = Double.parseDouble(m.group(1).replace(",", "")); priceSlot = i; break; }
+				}
+			}
+			if (item == null && i < 54 && ItemKeys.keyFor(st) != null && !st.getHoverName().getString().toLowerCase(Locale.ROOT).contains("auction"))
+				item = st;
+		}
+		if (price == null || item == null || price <= 0) return null;
+		String key = ItemKeys.keyFor(item);
+		JsonObject doc = NefClient.docFor(key, false);
+		Double lowest = doc == null ? null : HudFormatter.num(HudFormatter.obj(doc, "market", "listed"), "lowest");
+		MarketBook.Item b = MarketBook.get(key);
+		if (b != null && b.lowest() > 0 && (lowest == null || b.lowest() < lowest)) lowest = b.lowest();
+		if (lowest == null || lowest <= 0) return null;
+		double unit = price / Math.max(1, item.getCount());
+		if (unit < lowest * 0.8)
+			return new Object[]{priceSlot, new Warn("Priced far too low", String.format(Locale.ROOT,
+					"%s is %.0f%% under the lowest BIN (%s). Check the number.", HudFormatter.fmt(price), 100 * (1 - unit / lowest),
+					HudFormatter.fmt(lowest * Math.max(1, item.getCount()))), true)};
+		if (unit > lowest * 1.5)
+			return new Object[]{priceSlot, new Warn("Won't sell at this price", String.format(Locale.ROOT,
+					"%s is %.0f%% over the lowest BIN (%s).", HudFormatter.fmt(price), 100 * (unit / lowest - 1),
+					HudFormatter.fmt(lowest * Math.max(1, item.getCount()))), false)};
+		return null;
+	}
+
 	// ------------------------------------------------------------------ Bazaar
 	/** {slot index, Warn} for the Sell Instantly / Buy Instantly button of a product page, or null. */
 	static Object[] bazaar(AbstractContainerScreen<?> acs, String rawTitle) {
@@ -174,6 +220,12 @@ final class Guard {
 				String n = sl.getItem().getHoverName().getString().replaceAll("§.", "").toLowerCase(Locale.ROOT);
 				if (n.contains("buy item right now") || n.equals("confirm")) mark(p, box[0] + sl.x, box[1] + sl.y, w);
 			}
+			return true;
+		}
+		Object[] own = listing(acs, t);
+		if (own != null && (int) own[0] >= 0) {
+			Slot sl = acs.getMenu().slots.get((int) own[0]);
+			mark(p, box[0] + sl.x, box[1] + sl.y, (Warn) own[1]);
 			return true;
 		}
 		Object[] bz = bazaar(acs, raw);

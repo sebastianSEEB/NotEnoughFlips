@@ -89,6 +89,10 @@ final class Bazaar {
 			return String.format(java.util.Locale.ROOT, "pumped: %.0f%% above its 7-day level", 100 * (Math.max(l.buy() / normal[0], l.sell() / normal[1]) - 1));
 		if (l.sell() > 0 && l.sell() < normal[1] * 0.6 || l.buy() > 0 && l.buy() < normal[0] * 0.6)
 			return String.format(java.util.Locale.ROOT, "crashing: %.0f%% under its 7-day level", 100 * (1 - Math.min(l.sell() / normal[1], l.buy() / normal[0])));
+		// the gap between buy and sell is normally a few %; a sudden wide gap means one side was pulled or walled
+		double usual = Math.max(0.005, 1 - normal[1] / normal[0]), now = l.buy() > 0 ? 1 - l.sell() / l.buy() : 0;
+		if (now > 0.10 && now > 3 * usual)
+			return String.format(java.util.Locale.ROOT, "spread %.0f%% (usually %.0f%%): one side was pulled", 100 * now, 100 * usual);
 		return null;
 	}
 

@@ -203,7 +203,15 @@ final class DataClient {
 	 * median instant-sell, hours}. Null until loaded (fetched on first use, then every 30 min).
 	 */
 	double[] bazaarNormal(String id) {
-		if (id == null || !id.matches("[A-Z0-9_:]+") || cfg.dataUrl == null || cfg.dataUrl.isBlank()) return null;
+		if (id == null || !id.matches("[A-Z0-9_:]+")) return null;
+		List<double[]> wk = bzSeries.get(id);                          // SkyCofl's week (2 h bars), loaded on your PC
+		if (wk == null) bazaarSlide(id);                               // queue it
+		if (wk != null && wk.size() >= 12) {
+			List<Double> b = new ArrayList<>(), s = new ArrayList<>();
+			for (double[] q : wk) { if (q[1] > 0) b.add(q[1]); if (q[2] > 0) s.add(q[2]); }
+			if (b.size() >= 12 && s.size() >= 12) return new double[]{Market.median(b), Market.median(s), Math.min(b.size(), s.size())};
+		}
+		if (cfg.dataUrl == null || cfg.dataUrl.isBlank()) return null;
 		long now = System.currentTimeMillis();
 		Long at = bzWeekAt.get(id);
 		if (at == null || now - at > 1_800_000L) {
@@ -225,7 +233,14 @@ final class DataClient {
 
 	/** bazaarNormal() without fetching (null when not loaded yet). */
 	double[] bazaarNormalCached(String id) {
-		return id == null ? null : bzWeek.get(id);
+		if (id == null) return null;
+		List<double[]> wk = bzSeries.get(id);
+		if (wk != null && wk.size() >= 12) {
+			List<Double> b = new ArrayList<>(), s = new ArrayList<>();
+			for (double[] q : wk) { if (q[1] > 0) b.add(q[1]); if (q[2] > 0) s.add(q[2]); }
+			if (b.size() >= 12 && s.size() >= 12) return new double[]{Market.median(b), Market.median(s), Math.min(b.size(), s.size())};
+		}
+		return bzWeek.get(id);
 	}
 
 	private CompletableFuture<JsonObject> getJson(String url, int timeoutSeconds) {
@@ -295,11 +310,41 @@ final class DataClient {
 			cc.raw("https://sky.coflnet.com/api/bazaar/" + next + "/history/week").whenComplete((arr, e) -> {
 				if (e != null) return;                               // busy: asked again on the next re-rank
 				double slope = Double.NaN;
-				if (arr != null && arr.isJsonArray()) slope = slope(arr.getAsJsonArray());
+				if (arr != null && arr.isJsonArray()) {
+					slope = slope(arr.getAsJsonArray());
+					List<double[]> series = series(arr.getAsJsonArray());
+					if (series.size() >= 12) bzSeries.put(next, series);
+				}
 				slides.put(next, new double[]{slope, System.currentTimeMillis()});
 			});
 		}
 		return v == null ? Double.NaN : v[0];
+	}
+
+	private final Map<String, List<double[]>> bzSeries = new java.util.concurrent.ConcurrentHashMap<>();
+
+	/** A product's SkyCofl week as {time ms, instant-buy, instant-sell} (2 h bars), or null until loaded (bazaarSlide queues it). */
+	List<double[]> bazaarWeek(String id) {
+		return id == null ? null : bzSeries.get(id);
+	}
+
+	/** Pure: SkyCofl bazaar history points → {time ms, buy, sell}, oldest first. */
+	static List<double[]> series(com.google.gson.JsonArray arr) {
+		List<double[]> out = new ArrayList<>();
+		for (JsonElement e : arr) {
+			try {
+				JsonObject o = e.getAsJsonObject();
+				double t = java.time.LocalDateTime.parse(o.get("timestamp").getAsString().replace("Z", ""))
+						.toEpochSecond(java.time.ZoneOffset.UTC) * 1000.0;
+				double b = o.has("buy") && !o.get("buy").isJsonNull() ? o.get("buy").getAsDouble() : 0;
+				double s = o.has("sell") && !o.get("sell").isJsonNull() ? o.get("sell").getAsDouble() : 0;
+				if (b > 0 || s > 0) out.add(new double[]{t, b, s});
+			} catch (RuntimeException ignored) {
+				// skip
+			}
+		}
+		out.sort((a, c) -> Double.compare(a[0], c[0]));
+		return out;
 	}
 
 	/** Pure: least-squares slope of ln(buy) per hour over SkyCofl history points ({timestamp, buy, …}). */
@@ -373,6 +418,7 @@ final class DataClient {
 		Map<String, Forecasts.Side> m = key == null ? null : forecasts().get(key);
 		Forecasts.Side f = m == null ? null : m.get(side);
 		if (f == null && "main".equals(side)) f = LocalForecast.forItem(key);   // AH items: made on your PC
+		if (f == null && ("buy".equals(side) || "sell".equals(side))) f = LocalForecast.forBazaar(key, side, this);   // bazaar: also on your PC
 		return f;
 	}
 
