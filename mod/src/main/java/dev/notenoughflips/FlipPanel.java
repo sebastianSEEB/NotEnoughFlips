@@ -286,7 +286,8 @@ final class FlipPanel {
 				int col = st.state().startsWith("top") || "filled".equals(st.state()) ? GOOD : "unknown".equals(st.state()) ? MUTED : WARN;
 				String detail = HudFormatter.fmt(o.price()) + (st.top() != null ? " vs " + HudFormatter.fmt(st.top()) : "")
 						+ (o.amount() > 0 ? " · " + o.filled() + "/" + o.amount() + " filled" : "");
-				row(p, x, y, w, o.side() + " " + o.name(), right, col, detail, null);
+				final String pname = o.name();
+				row(p, x, y, w, o.side() + " " + o.name(), right, col, detail, () -> Cmd.bazaar(pname));   // click: open it in /bz
 				y += R2;
 			}
 			y += 2;
@@ -294,6 +295,21 @@ final class FlipPanel {
 			p.text(FcfPanel.fit("Open your Bazaar orders to track", w - 8), x + 4, y, DIM);
 			y += 11;
 		}
+		// the orders HUD (top right, also without the inventory): on/off, width, how many per side
+		int hx = x + 3;
+		chip(p, hx, y, cfg.bzHud ? "HUD on" : "HUD off", cfg.bzHud, () -> { cfg.bzHud = !cfg.bzHud; cfg.save(); });
+		hx += chipW(cfg.bzHud ? "HUD on" : "HUD off") + 2;
+		for (String[] sz : new String[][]{{"small", "S"}, {"medium", "M"}, {"large", "L"}}) {
+			final String id = sz[0];
+			chip(p, hx, y, sz[1], id.equals(cfg.bzHudSize), () -> { cfg.bzHudSize = id; cfg.bzHud = true; cfg.save(); });
+			hx += chipW(sz[1]) + 2;
+		}
+		for (int n : new int[]{3, 5, 8, 12}) {
+			final int nn = n;
+			chip(p, hx, y, String.valueOf(n), cfg.bzHudMax == n, () -> { cfg.bzHudMax = nn; cfg.bzHud = true; cfg.save(); });
+			hx += chipW(String.valueOf(n)) + 2;
+		}
+		y += 15;
 		List<Market.BzFlip> list = Bazaar.ranking(cfg, data, budget());
 		double[] today = ProfitLog.marketTotal(ProfitLog.startOfDay(0), "BZ");
 		long age = Bazaar.snapshotAt() > 0 ? (System.currentTimeMillis() - Bazaar.snapshotAt()) / 60000 : -1;
@@ -401,28 +417,58 @@ final class FlipPanel {
 			return y + 10;
 		}
 		double budget = budget();
-		int shown = 0;
 		JsonArray arr = cj.getAsJsonArray("flips");
-		for (JsonElement e : arr) {
+		List<JsonObject> fit = new ArrayList<>(), over = new ArrayList<>();
+		for (JsonElement e : arr) (FcfPanel.d(e.getAsJsonObject(), "cost") <= budget ? fit : over).add(e.getAsJsonObject());
+		boolean overBudget = fit.isEmpty();
+		if (overBudget) {                                          // nothing fits: show the cheapest ones anyway
+			over.sort((a, b) -> Double.compare(FcfPanel.d(a, "cost"), FcfPanel.d(b, "cost")));
+			fit = over.subList(0, Math.min(6, over.size()));
+			p.text(FcfPanel.fit("Over your " + HudFormatter.fmt(budget) + "/flip budget:", w - 8), x + 4, y, WARN);
+			y += 10;
+		}
+		for (JsonObject r : fit) {
 			if (y + R2 > bottom) break;
-			JsonObject r = e.getAsJsonObject();
-			if (FcfPanel.d(r, "cost") > budget) continue;
+			String item = FcfPanel.str(r, "item");
 			String name = FcfPanel.str(r, "name");
 			String where = FcfPanel.str(r, "where");
 			String detail = HudFormatter.fmt(FcfPanel.d(r, "cost")) + " → " + HudFormatter.fmt(FcfPanel.d(r, "sell"))
 					+ " " + where + " · +" + HudFormatter.fmt(FcfPanel.d(r, "profit")) + " ea";
-			row(p, x, y, w, name == null ? FcfPanel.str(r, "item") : name, "+" + HudFormatter.fmt(FcfPanel.d(r, "profit_per_day")) + "/d",
-					GOOD, detail, () -> craftChat(r));
+			boolean sel = item != null && item.equals(craftSel);
+			row(p, x, y, w, (sel ? "▾ " : "▸ ") + (name == null ? item : name), "+" + HudFormatter.fmt(FcfPanel.d(r, "profit_per_day")) + "/d",
+					GOOD, detail, () -> {
+						craftSel = item != null && item.equals(craftSel) ? null : item;
+						if (craftSel != null) craftChat(r);
+					});
 			y += R2;
-			shown++;
+			if (sel && r.has("ingredients")) {                     // shopping list: click an ingredient to go and buy it
+				for (JsonElement ge : r.getAsJsonArray("ingredients")) {
+					if (y + 10 > bottom) break;
+					JsonObject g = ge.getAsJsonObject();
+					String gid = FcfPanel.str(g, "id"), how = FcfPanel.str(g, "how"), gname = Desk.pretty(gid);
+					boolean link = how == null || how.startsWith("bazaar") || how.startsWith("lowest BIN");
+					String t = (long) FcfPanel.d(g, "n") + "× " + gname;
+					String r2 = HudFormatter.fmt(FcfPanel.d(g, "unit")) + (how == null ? "" : how.startsWith("bazaar") ? " BZ" : how.startsWith("lowest") ? " AH" : " " + how);
+					p.text(FcfPanel.fit((link ? "→ " : "   ") + t, w - width(r2) - 16), x + 8, y, link ? McStyle.BLUE : TEXT);
+					p.text(r2, x + w - width(r2) - 4, y, MUTED);
+					if (link) hits.add(new Hit(x, y - 1, x + w, y + 9, () -> Cmd.buyIngredient(how, gname)));
+					y += 10;
+				}
+				if (y + 10 <= bottom) {
+					String sellName = name == null ? Desk.pretty(item) : name;
+					p.text("→ sell: open " + ("AH".equals(where) ? "the AH" : "the Bazaar"), x + 8, y, McStyle.BLUE);
+					hits.add(new Hit(x, y - 1, x + w, y + 9, () -> {
+						if ("AH".equals(where)) Cmd.ahSearch(sellName); else Cmd.bazaar(sellName);
+					}));
+					y += 11;
+				}
+			}
 		}
-		if (shown == 0) {
-			p.text(FcfPanel.fit("None fit your budget", w - 8), x + 4, y, MUTED);
-			return y + 10;
-		}
-		p.text(FcfPanel.fit("click = shopping list in chat", w - 8), x + 4, y, DIM);
+		p.text(FcfPanel.fit("click a craft = what to buy (click to open)", w - 8), x + 4, y, DIM);
 		return y + 10;
 	}
+
+	private static String craftSel;
 
 	private static void craftChat(JsonObject r) {
 		String name = FcfPanel.str(r, "name");
@@ -432,8 +478,13 @@ final class FlipPanel {
 		if (r.has("ingredients")) {
 			for (JsonElement e : r.getAsJsonArray("ingredients")) {
 				JsonObject g = e.getAsJsonObject();
-				Chat.say(HudFormatter.line("   ☐ " + (long) FcfPanel.d(g, "n") + "x " + Desk.pretty(FcfPanel.str(g, "id")), HudFormatter.WHITE,
-						"  " + HudFormatter.fmt(FcfPanel.d(g, "unit")) + " each (" + FcfPanel.str(g, "how") + ")", HudFormatter.DARK));
+				String gname = Desk.pretty(FcfPanel.str(g, "id")), how = FcfPanel.str(g, "how");
+				var line = HudFormatter.line("   ☐ " + (long) FcfPanel.d(g, "n") + "x " + gname, HudFormatter.WHITE,
+						"  " + HudFormatter.fmt(FcfPanel.d(g, "unit")) + " each (" + how + ")  ", HudFormatter.DARK);
+				String safe = gname.replaceAll("[^A-Za-z0-9 '()\\-]", "").trim();
+				if (how == null || how.startsWith("bazaar")) line.append(HudFormatter.link("[open in Bazaar]", HudFormatter.AQUA, "/bz " + safe, "/bz " + safe));
+				else if (how.startsWith("lowest BIN")) line.append(HudFormatter.link("[search AH]", HudFormatter.AQUA, "/ahs " + safe, "/ahs " + safe));
+				Chat.say(line);
 			}
 		}
 		String req = FcfPanel.str(r, "requires");

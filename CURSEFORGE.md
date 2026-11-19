@@ -26,6 +26,14 @@ Click the banner to open the auction, or let the mod open it for you: at once or
 
 The DEALS button above your inventory lists every cheap BIN the mod found in its last AH scan. Click one to open it.
 
+## Bazaar orders HUD
+
+Press O (change it in Controls → Key Binds) to show your bazaar orders at the top right of the screen while you play: buy orders on the left, sell offers on the right, each marked as top of the book, outbid/undercut or filled. Pick the size and how many orders to show in FLIP → Bazaar, or with `/nef orders size small|medium|large` and `/nef orders max 8`. Open /bz → Manage Orders once so the mod can read them.
+
+## Everything is clickable
+
+Rows open what they are about: auctions open the auction, bazaar items open the Bazaar, craft ingredients open the Bazaar or the AH search. Chat alerts for deals, snipes, outbid bazaar orders and watched items have [open], [open in Bazaar] or [search AH] links.
+
 ## Bidder check
 
 In an auction, a panel shows how many coins each of the other bidders has in purse and bank. If none of them can afford to go much higher, you don't need to open with a big bid.
@@ -67,6 +75,7 @@ A free Hypixel API key (developer.hypixel.net) turns on the bidder check and add
 | `/nef signals` | Bazaar misprices and correlations |
 | `/nef forecast on\|off` | Use forecasts in the flip lists |
 | `/nef desk` | Open the Trade Desk |
+| `/nef orders` | Bazaar orders HUD on or off (also key O): `size small\|medium\|large`, `max <1-20>` |
 | `/nef mode simple\|pro` | Short or detailed tooltips |
 | `/nef apikey <key\|clear>` | Your Hypixel API key, for the bidder check |
 

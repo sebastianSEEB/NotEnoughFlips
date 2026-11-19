@@ -199,11 +199,13 @@ final class BzOrders {
 			if ("outbid".equals(st.state())) {
 				Alerts.alert(HudFormatter.line("[NEF] ", HudFormatter.GOLD, "Buy order outbid: ", HudFormatter.YELLOW,
 						o.name() + " (yours " + HudFormatter.fmt(o.price()) + ", top now " + HudFormatter.fmt(st.top())
-								+ ") → re-place at " + HudFormatter.fmt(st.top() + 0.1) + " if it's still a flip", HudFormatter.WHITE));
+								+ ") → re-place at " + HudFormatter.fmt(st.top() + 0.1) + " if it's still a flip", HudFormatter.WHITE)
+						.append(HudFormatter.openBazaar(o.name())));
 			} else if ("undercut".equals(st.state())) {
 				Alerts.alert(HudFormatter.line("[NEF] ", HudFormatter.GOLD, "Sell offer undercut: ", HudFormatter.YELLOW,
 						o.name() + " (yours " + HudFormatter.fmt(o.price()) + ", cheapest now " + HudFormatter.fmt(st.top())
-								+ ") → re-place at " + HudFormatter.fmt(st.top() - 0.1), HudFormatter.WHITE));
+								+ ") → re-place at " + HudFormatter.fmt(st.top() - 0.1), HudFormatter.WHITE)
+						.append(HudFormatter.openBazaar(o.name())));
 			}
 		}
 	}

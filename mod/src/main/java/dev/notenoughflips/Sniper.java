@@ -297,7 +297,8 @@ final class Sniper {
 			}
 			if (a.status().equals("ok")) {
 				Chat.say(HudFormatter.line("[NEF] ✓ checked: ", HudFormatter.GREEN, a.name() + " is a real snipe (sales history, not manipulated)"
-						+ String.format(Locale.ROOT, ", resell ≈ %s, +%s after fees", HudFormatter.fmt(a.resale()), HudFormatter.fmt(a.profit())), HudFormatter.WHITE));
+						+ String.format(Locale.ROOT, ", resell ≈ %s, +%s after fees", HudFormatter.fmt(a.resale()), HudFormatter.fmt(a.profit())), HudFormatter.WHITE)
+						.append(HudFormatter.openAuction(a.uuid())));
 			} else {
 				Chat.say(HudFormatter.line("[NEF] ✗ DON'T BUY ", HudFormatter.RED, a.name() + ": " + a.status().replaceFirst("^bad: ", ""), HudFormatter.WHITE));
 			}
@@ -410,7 +411,8 @@ final class Sniper {
 			}
 			Chat.say(HudFormatter.line("[NEF] ⚡ UNDERVALUED BIN ", HudFormatter.GOLD, al.name() + " " + HudFormatter.fmt(al.price()), HudFormatter.WHITE,
 					String.format(Locale.ROOT, " → resell ≈ %s, +%s (%.0f%%) after fees", HudFormatter.fmt(al.resale()), HudFormatter.fmt(al.profit()), al.pct() * 100),
-					HudFormatter.GREEN, al.status().equals("ok") ? "  ✓ checked" : "  checking history… wait for ✓ before you confirm", HudFormatter.GRAY));
+					HudFormatter.GREEN, al.status().equals("ok") ? "  ✓ checked" : "  checking history… wait for ✓ before you confirm", HudFormatter.GRAY)
+					.append(HudFormatter.openAuction(al.uuid())));
 		});
 	}
 

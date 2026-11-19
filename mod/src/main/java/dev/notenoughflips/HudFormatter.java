@@ -70,6 +70,26 @@ final class HudFormatter {
 		return Component.literal(t).withColor(color);
 	}
 
+	/** Clickable chat text: runs the command (e.g. "/viewauction …", "/bz …") when you click it. */
+	static MutableComponent link(String t, int color, String command, String hover) {
+		return seg(t, color).withStyle(s -> {
+			net.minecraft.network.chat.Style st = s.withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand(command)).withUnderlined(true);
+			return hover == null ? st : st.withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal(hover)));
+		});
+	}
+
+	/** "[open]" link to an auction (/viewauction). */
+	static MutableComponent openAuction(String uuid) {
+		String u = uuid == null ? "" : uuid.replace("-", "");
+		return u.matches("[0-9a-fA-F]{32}") ? link(" [open]", AQUA, "/viewauction " + u, "Open this auction") : Component.empty();
+	}
+
+	/** "[open in Bazaar]" link (/bz name). */
+	static MutableComponent openBazaar(String name) {
+		String s = name == null ? "" : name.replaceAll("[^A-Za-z0-9 '()\\-]", "").trim();
+		return s.isEmpty() || s.length() > 40 ? Component.empty() : link(" [open in Bazaar]", AQUA, "/bz " + s, "/bz " + s);
+	}
+
 	static MutableComponent line(Object... parts) {           // alternating text, color
 		MutableComponent c = Component.empty();
 		for (int i = 0; i + 1 < parts.length; i += 2) c.append(seg((String) parts[i], (Integer) parts[i + 1]));

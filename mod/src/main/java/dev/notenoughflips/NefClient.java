@@ -27,6 +27,13 @@ public final class NefClient implements ClientModInitializer {
 	private static NefConfig config;
 	private static DataClient data;
 
+	private static int ordersSize(String size) {
+		config.bzHudSize = size;
+		config.bzHud = true;
+		config.save();
+		return 1;
+	}
+
 	static DataClient data() {
 		return data;
 	}
@@ -80,6 +87,8 @@ public final class NefClient implements ClientModInitializer {
 		Bidders.init(config);
 		MyWallet.init(config);
 		DealsPanel.init(config);
+		OrdersHud.init(config, data);
+		Keys.register();
 		AhMarket.init();
 		FlipPanel.init(config, data);
 		SignFill.init(config, data);
@@ -94,6 +103,7 @@ public final class NefClient implements ClientModInitializer {
 		net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			Accounts.tick();                                               // another account → its own files
 			Sniper.clientTick();                                           // auto-open that waited for chat to close
+			Keys.tick(config);                                             // O: bazaar orders HUD on/off
 			if (client.player != null && ticks[0] % 200 == 0) {          // every 10 s
 				try {
 					MyWallet.tick();                                   // your bank (with your API key), every 5 min
@@ -431,6 +441,26 @@ public final class NefClient implements ClientModInitializer {
 									ctx.getSource().sendFeedback(Component.literal("[NEF] Forecasts OFF: flips use live prices only."));
 									return 1;
 								})))
+						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("orders").executes(ctx -> {
+									config.bzHud = !config.bzHud;
+									config.save();
+									ctx.getSource().sendFeedback(Component.literal("[NEF] Bazaar orders HUD " + (config.bzHud ? "ON" : "OFF")
+											+ " (key O, or /nef orders) · /nef orders size small|medium|large · /nef orders max <1-20>"));
+									return 1;
+								})
+								.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("size")
+										.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("small").executes(ctx -> ordersSize("small")))
+										.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("medium").executes(ctx -> ordersSize("medium")))
+										.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("large").executes(ctx -> ordersSize("large"))))
+								.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("max")
+										.then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<FabricClientCommandSource, Integer>argument("n",
+												com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 20)).executes(ctx -> {
+													config.bzHudMax = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "n");
+													config.bzHud = true;
+													config.save();
+													ctx.getSource().sendFeedback(Component.literal("[NEF] Bazaar orders HUD shows up to " + config.bzHudMax + " orders per side."));
+													return 1;
+												}))))
 						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("desk").executes(ctx -> {
 							Desk.toggle();
 							ctx.getSource().sendFeedback(Component.literal(Desk.isOn() ? "[NEF] Trade Desk open: press E." : "[NEF] Trade Desk closed."));

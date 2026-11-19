@@ -46,6 +46,10 @@ final class NefConfig {
 	boolean modScan = true;           // scan the AH for your listings + bids every 15 min while you play (FCF panel / Trade Desk)
 	boolean coflFallback = true;      // use SkyCofl (sky.coflnet.com) prices when our data has too little history
 	boolean fcfButton = true;
+	// bazaar orders HUD (top right, also without the inventory open): toggle with the key (default O) or /nef orders
+	boolean bzHud = false;
+	int bzHudMax = 5;                 // orders shown per side (buy | sell)
+	String bzHudSize = "medium";      // small | medium | large (width)
 	boolean dealsButton = true;        // "DEALS" button above your inventory: /nef deals as a clickable list on the left
 	boolean deskButton = true;         // "DESK" button above your inventory: the Trade Desk (positions, bazaar, signals, coach)
 	/** Bazaar products shown in the Trade Desk "Bazaar" section and the FCF panel's Bazaar tab (/nef bz add|remove <id>). */
@@ -132,7 +136,9 @@ final class NefConfig {
 
 	/** One-time changes to existing settings when a new version changes a default the player never chose. */
 	void migrate() {
-		cfgRev = 2;                        // fresh public release: the defaults above are the starting point
+		// rev 3: the data site moved to the NotEnoughFlips repo (the first builds saved the old address)
+		if (dataUrl != null && dataUrl.contains("/not-enough-flips")) dataUrl = dataUrl.replace("/not-enough-flips", "/NotEnoughFlips");
+		cfgRev = 3;
 	}
 
 

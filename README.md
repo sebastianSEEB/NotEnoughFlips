@@ -40,6 +40,7 @@ A Hypixel SkyBlock trading helper for Fabric. Not Enough Flips shows prices, ver
 | `/nef forecast on\|off` | Use forecasts in the flip lists |
 | `/nef apikey <key\|clear>` | Your own Hypixel API key, for the bidders panel |
 | `/nef desk` | Open the Trade Desk |
+| `/nef orders` | Bazaar orders HUD on or off (also key O): `size small\|medium\|large`, `max <1-20>` |
 | `/nef mode simple\|pro` | Short or detailed tooltips |
 
 ## Install

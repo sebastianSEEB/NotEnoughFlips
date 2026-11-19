@@ -1106,6 +1106,10 @@ final class Desk {
 				new Col("Avg", 0.12, true), new Col("High", 0.12, true), new Col("Low", 0.12, true), new Col("Gap", 0.10, true)},
 				rows, "Sell / Buy = instant prices now · Avg, High, Low = last 24 h · Gap = Buy minus Sell");
 		bazaarChart(p, x, y + tableH + 4, w, h - tableH - 4, bzSel);
+		final String sel = bzSel, selName = pretty(bzSel);                   // quick link: flip it in the Bazaar
+		String b1 = "Flip " + selName + " in Bazaar";
+		int bx = x + w - w(b1) - 10;
+		button(p, bx, y + tableH + 2, bx + w(b1) + 10, y + tableH + 15, b1, true, () -> { on = false; FlipPanel.pick(sel, selName); });
 	}
 
 	static String pretty(String k) {

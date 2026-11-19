@@ -106,6 +106,12 @@ final class Watch {
 		}
 	}
 
+	/** "[search AH]" link for a watched item. */
+	private static net.minecraft.network.chat.MutableComponent ahLink(String key) {
+		String name = Desk.pretty(key).replaceAll("[^A-Za-z0-9 '()\\-]", "").trim();
+		return HudFormatter.link(" [search AH]", HudFormatter.AQUA, "/ahs " + name, "/ahs " + name);
+	}
+
 	private static void say(Component c) {
 		Chat.say(c);
 	}
@@ -155,15 +161,15 @@ final class Watch {
 			say(HudFormatter.line(head, HudFormatter.GOLD,
 					String.format(Locale.ROOT, "⚠ lowest BIN dropped to %s (was %s). Your bid %s is no longer profitable "
 							+ "(max now %s). Don't raise it.", HudFormatter.fmt(lowest), HudFormatter.fmt(prev),
-							HudFormatter.fmt(e.myBid), HudFormatter.fmt(maxNow)), HudFormatter.RED));
+							HudFormatter.fmt(e.myBid), HudFormatter.fmt(maxNow)), HudFormatter.RED).append(ahLink(e.key)));
 		} else if (change < 0) {
 			say(HudFormatter.line(head, HudFormatter.GOLD,
 					String.format(Locale.ROOT, "↓ lowest BIN %s (was %s, %.1f%%). Still profitable up to %s.",
-							HudFormatter.fmt(lowest), HudFormatter.fmt(prev), change * 100, HudFormatter.fmt(maxNow)), HudFormatter.YELLOW));
+							HudFormatter.fmt(lowest), HudFormatter.fmt(prev), change * 100, HudFormatter.fmt(maxNow)), HudFormatter.YELLOW).append(ahLink(e.key)));
 		} else {
 			say(HudFormatter.line(head, HudFormatter.GOLD,
 					String.format(Locale.ROOT, "↑ lowest BIN %s (was %s, +%.1f%%). More margin: max profitable bid now %s.",
-							HudFormatter.fmt(lowest), HudFormatter.fmt(prev), change * 100, HudFormatter.fmt(maxNow)), 0x55FF55));
+							HudFormatter.fmt(lowest), HudFormatter.fmt(prev), change * 100, HudFormatter.fmt(maxNow)), 0x55FF55).append(ahLink(e.key)));
 		}
 		e.maxProfitable = Math.max(0, maxNow);
 	}

@@ -91,8 +91,7 @@ final class Deals {
 						(d.count() > 1 ? d.count() + "x " : "") + d.key(), HudFormatter.WHITE,
 						String.format(Locale.ROOT, "  BIN %s (%.0f%% under fair %s)  ", HudFormatter.fmt(d.price()), d.discount() * 100,
 								HudFormatter.fmt(d.fair() * d.count())), HudFormatter.GRAY,
-						"+" + HudFormatter.fmt(d.profit()) + " after fees", 0x55FF55,
-						"  → /nef open " + (i + 1), HudFormatter.AQUA));
+						"+" + HudFormatter.fmt(d.profit()) + " after fees", 0x55FF55).append(HudFormatter.openAuction(d.uuid())));
 			}
 			first = false;
 			if (announced.size() > 5000) announced.clear();
