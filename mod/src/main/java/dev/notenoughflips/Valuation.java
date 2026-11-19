@@ -254,17 +254,42 @@ final class Valuation {
 		parts.addAll(comps);
 		double total = 0;
 		for (Part p : parts) total += p.coins();
+		// upgrades are only worth what buyers actually pay: never value a copy above what copies of this item
+		// really sell for (the top 10 % of recent sale prices). A 3M helmet with an 8M recomb does not sell for 11M.
+		double ceiling = NefClient.cofl == null ? 0 : ceiling(NefClient.cofl.week(key, false));
+		if (ceiling > 0 && total > ceiling && total > base) {
+			parts.add(new Part("but copies sell for at most about", ceiling - total));
+			total = Math.max(base, ceiling);
+		}
 		return new Estimate(total, base, parts, a, type, ns == null ? 0 : ns.intValue(), frac);
+	}
+
+	/**
+	 * What copies of an item really sell for at the top end: the 90th percentile of the highest sale in each period of
+	 * the last 7 days (SkyCofl). With fewer than 20 periods: the 2nd-highest period high (one odd sale doesn't count).
+	 * 0 = no sales data yet (no cap).
+	 */
+	static double ceiling(List<double[]> week) {
+		if (week == null) return 0;
+		List<Double> highs = new ArrayList<>();
+		for (double[] q : week) if (q.length > 4 && q[4] > 0 && q[2] > 0) highs.add(q[2]);
+		if (highs.size() < 2) return 0;
+		highs.sort(Double::compare);
+		if (highs.size() < 20) return highs.get(highs.size() - 2);
+		return highs.get((int) Math.floor(0.9 * (highs.size() - 1)));
 	}
 
 	/** "  value ≈ 152M = clean 120M + stars 12M + enchants 15M + recomb 5M" (+ rarity line). */
 	static List<Component> lines(Estimate e) {
 		List<Component> out = new ArrayList<>();
 		StringBuilder sb = new StringBuilder();
+		boolean capped = false;
 		for (int i = 0; i < e.parts().size(); i++) {
 			Part p = e.parts().get(i);
+			if (p.coins() < 0) { capped = true; continue; }        // the "sells for at most" cap, shown at the end
 			sb.append(i == 0 ? "" : " + ").append(p.label()).append(' ').append(HudFormatter.fmt(p.coins()));
 		}
+		if (capped) sb.append(", capped at what copies really sell for");
 		out.add(HudFormatter.line("    this copy ≈ ", HudFormatter.GRAY, HudFormatter.fmt(e.value()), HudFormatter.WHITE,
 				" = " + sb, HudFormatter.DARK));
 		Attrs a = e.attrs();
