@@ -167,6 +167,48 @@ final class CoflClient {
 		return pts;
 	}
 
+	/**
+	 * Like week(), but without the periods that look manipulated (see manipulated()), as long as enough normal
+	 * periods are left (≥ 8 and at least 40 % of them). Every price check uses this; the chart shows everything.
+	 */
+	List<double[]> weekClean(String key, boolean fetch) {
+		List<double[]> w = week(key, fetch);
+		return w == null ? null : clean(w);
+	}
+
+	/** The normal periods of a week, or the whole week when too few would be left to judge on. */
+	static List<double[]> clean(List<double[]> pts) {
+		boolean[] bad = manipulated(pts);
+		List<double[]> out = new ArrayList<>();
+		for (int i = 0; i < pts.size(); i++) if (!bad[i]) out.add(pts.get(i));
+		return out.size() >= 8 && out.size() >= 0.4 * pts.size() ? out : pts;
+	}
+
+	/**
+	 * Periods that look manipulated ([time, min, max, avg, volume] each):
+	 *   price  the period's average is ≥ 40 % above or below the week's typical level AND ≥ 4 robust deviations away
+	 *          (median ± 4 × 1.4826 × MAD of the period averages), so normal swings of a volatile item stay in
+	 *   burst  far more sales than usual (≥ 5 × the typical period) while the price is ≥ 20 % above typical: a buyout
+	 */
+	static boolean[] manipulated(List<double[]> pts) {
+		boolean[] bad = new boolean[pts.size()];
+		if (pts.size() < 6) return bad;
+		List<Double> avgs = new ArrayList<>(), vols = new ArrayList<>();
+		for (double[] q : pts) { avgs.add(q[3]); if (q[4] > 0) vols.add(q[4]); }
+		double med = Market.median(new ArrayList<>(avgs));
+		List<Double> dev = new ArrayList<>();
+		for (double a : avgs) dev.add(Math.abs(a - med));
+		double sigma = 1.4826 * Market.median(dev);
+		double volMed = vols.isEmpty() ? 0 : Market.median(vols);
+		for (int i = 0; i < pts.size(); i++) {
+			double a = pts.get(i)[3], v = pts.get(i)[4];
+			boolean price = med > 0 && (a >= med * 1.4 || a <= med * 0.6) && Math.abs(a - med) >= 4 * Math.max(sigma, med * 0.02);
+			boolean burst = volMed > 0 && v >= 5 * volMed && a >= med * 1.2;
+			bad[i] = price || burst;
+		}
+		return bad;
+	}
+
 	private static List<double[]> points(Entry e) {
 		List<double[]> pts = new ArrayList<>();            // [time, min, max, avg, volume]
 		if (e.history() == null) return pts;
@@ -243,8 +285,11 @@ final class CoflClient {
 	/** Same shape as our published item docs (summary / stats / market), marked source = SkyCofl. */
 	private static JsonObject build(String key, Entry e) {
 		long now = System.currentTimeMillis();
-		List<double[]> pts = points(e);
+		List<double[]> raw = points(e);
+		List<double[]> pts = clean(raw);                               // prices from the normal periods only
+		int dropped = raw.size() - pts.size();
 		JsonObject d24 = window(pts, now - 86_400_000L), d7 = window(pts, 0);
+		JsonObject r24 = window(raw, now - 86_400_000L), r7 = window(raw, 0);   // what everyone sees, for the warnings
 		Double lowest = HudFormatter.num(e.bin(), "lowest"), second = HudFormatter.num(e.bin(), "secondLowest");
 		if (lowest != null && lowest <= 0) lowest = null;
 		if (second != null && second <= 0) second = null;
@@ -268,7 +313,8 @@ final class CoflClient {
 		List<Double> f = new ArrayList<>();
 		if (d24 != null) f.add(d24.get("med").getAsDouble());
 		if (d7 != null) f.add(d7.get("med").getAsDouble());
-		if (lowest != null) f.add(lowest);
+		boolean inflated = lowest != null && d7 != null && lowest > d7.get("med").getAsDouble() * 1.6;
+		if (lowest != null && !(dropped > 0 && inflated)) f.add(lowest);   // pumped listings don't set the fair value
 		JsonObject market = new JsonObject();
 		if (!f.isEmpty()) {
 			double fair = Market.median(f);
@@ -279,23 +325,44 @@ final class CoflClient {
 		if (d24 != null) market.addProperty("sold_median_72h", d24.get("med").getAsDouble());
 		if (d7 != null) market.addProperty("avg_7d", d7.get("med").getAsDouble());
 		JsonArray flags = new JsonArray();
-		if (d24 != null && d7 != null && d7.get("med").getAsDouble() > 0) {
-			double jump = d24.get("med").getAsDouble() / d7.get("med").getAsDouble();
+		if (r24 != null && r7 != null && r7.get("med").getAsDouble() > 0) {
+			double jump = r24.get("med").getAsDouble() / r7.get("med").getAsDouble();
 			if (jump >= 1.4) flags.add(flag("spike", 2, String.format(java.util.Locale.ROOT,
 					"price jumped %.0f%% vs its 7-day level: possible manipulation, don't buy to flip", (jump - 1) * 100)));
 			else if (jump <= 0.65) flags.add(flag("crash", 1, String.format(java.util.Locale.ROOT,
 					"price fell %.0f%% vs its 7-day level: may keep falling", (1 - jump) * 100)));
 		}
-		if (d24 != null && d7 != null) {
+		if (r24 != null && r7 != null) {
 			// buyout: far more sales than usual in the last day while the price climbs
-			double n24 = d24.get("n").getAsDouble(), nBefore = (d7.get("n").getAsDouble() - n24) / 6.0;
-			double jump = d7.get("med").getAsDouble() > 0 ? d24.get("med").getAsDouble() / d7.get("med").getAsDouble() : 1;
+			double n24 = r24.get("n").getAsDouble(), nBefore = (r7.get("n").getAsDouble() - n24) / 6.0;
+			double jump = r7.get("med").getAsDouble() > 0 ? r24.get("med").getAsDouble() / r7.get("med").getAsDouble() : 1;
 			if (nBefore > 0 && n24 >= 3 * nBefore && n24 >= 6 && jump >= 1.2)
 				flags.add(flag("buyout", 2, String.format(java.util.Locale.ROOT,
 						"%.0f sales in 24h vs ~%.0f/day before while the price rose %.0f%%: looks like a buyout", n24, nBefore, (jump - 1) * 100)));
 		}
 		if (lowest != null && d7 != null && lowest > d7.get("med").getAsDouble() * 1.6)
 			flags.add(flag("lbin_high", 2, "cheapest BIN is far above recent sales: listings look inflated"));
+		if (dropped > 0) {
+			// manipulated periods were left out of every price above: the warnings stay, but they no longer block the
+			// verdict (it is now judged on the normal sales only)
+			JsonArray soft = new JsonArray();
+			for (var fe : flags) {
+				JsonObject fo = fe.getAsJsonObject().deepCopy();
+				if (fo.get("level").getAsInt() >= 2) {
+					fo.addProperty("level", 1);
+					fo.addProperty("text", fo.get("text").getAsString().replace(": possible manipulation, don't buy to flip", "")
+							+ " · prices here use only the normal sales");
+				}
+				soft.add(fo);
+			}
+			flags = soft;
+			flags.add(flag("cleaned", 1, String.format(java.util.Locale.ROOT,
+					"%d of %d periods looked manipulated and were left out of the prices", dropped, raw.size())));
+			JsonObject cl = new JsonObject();
+			cl.addProperty("dropped", dropped);
+			cl.addProperty("of", raw.size());
+			market.add("clean", cl);
+		}
 		if (!flags.isEmpty()) market.add("flags", flags);
 		JsonObject listed = new JsonObject();
 		if (lowest != null) listed.addProperty("lowest", lowest);

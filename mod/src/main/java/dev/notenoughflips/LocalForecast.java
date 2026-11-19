@@ -31,7 +31,7 @@ final class LocalForecast {
 		long now = System.currentTimeMillis();
 		Cached c = cache.get(key);
 		if (c != null && now - c.at() < 30 * 60_000L) return c.side();
-		List<double[]> week = NefClient.cofl.week(key, false);
+		List<double[]> week = NefClient.cofl.weekClean(key, false);
 		Forecasts.Side s = week == null ? null : of(hourly(week));
 		if (week != null) cache.put(key, new Cached(now, s));
 		if (cache.size() > 3000) cache.clear();

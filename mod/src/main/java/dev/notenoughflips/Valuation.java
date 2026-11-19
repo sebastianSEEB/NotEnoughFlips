@@ -256,7 +256,7 @@ final class Valuation {
 		for (Part p : parts) total += p.coins();
 		// upgrades are only worth what buyers actually pay: never value a copy above what copies of this item
 		// really sell for (the top 10 % of recent sale prices). A 3M helmet with an 8M recomb does not sell for 11M.
-		double ceiling = NefClient.cofl == null ? 0 : ceiling(NefClient.cofl.week(key, false));
+		double ceiling = NefClient.cofl == null ? 0 : ceiling(NefClient.cofl.weekClean(key, false));
 		if (ceiling > 0 && total > ceiling && total > base) {
 			parts.add(new Part("but copies sell for at most about", ceiling - total));
 			total = Math.max(base, ceiling);

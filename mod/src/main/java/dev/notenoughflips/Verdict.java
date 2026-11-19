@@ -196,7 +196,7 @@ final class Verdict {
 		}
 		if (price == null || fair == null || fair <= 0) return new Result(out, null);
 		// sale history all over the place (coin transfers, 100M "sales" of a cheap item): the fair value is meaningless
-		List<double[]> week = bz || NefClient.cofl == null ? null : NefClient.cofl.week(HudFormatter.str(d, "k"), false);
+		List<double[]> week = bz || NefClient.cofl == null ? null : NefClient.cofl.weekClean(HudFormatter.str(d, "k"), false);
 		Market.Erratic er = bz ? null : Market.erratic(week);
 		boolean unreliable = er != null && er.bad();
 		if (unreliable) risk = Math.max(risk, 2);

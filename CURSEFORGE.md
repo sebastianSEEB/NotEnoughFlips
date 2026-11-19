@@ -6,7 +6,7 @@ I went from 1M to 100M coins in two days using only this mod, with no money-maki
 
 ## Prices in tooltips
 
-Hover over an item to see its average price, the lowest BIN, the 7-day trend and a verdict: GOOD BUY, FAIR PRICE or OVERPRICED. An item is only compared with identical copies, meaning the same stars, recombobulator, hot potato books, big enchants, gems, attributes, skin and scrolls. When an item's sales are too erratic to price, the tooltip says NO RELIABLE PRICE instead of guessing.
+Hover over an item to see its average price, the lowest BIN, the 7-day trend and a verdict: GOOD BUY, FAIR PRICE or OVERPRICED. An item is only compared with identical copies, meaning the same stars, recombobulator, hot potato books, big enchants, gems, attributes, skin and scrolls. When an item's sales are too erratic to price, the tooltip says NO RELIABLE PRICE instead of guessing. When some of an item's recent sales look manipulated (sudden pumps or buyouts), those periods are left out and the price is worked out from the normal sales only; the chart marks them in red.
 
 ## Flip finder
 

@@ -177,7 +177,7 @@ final class FlipFeed {
 		for (Candidate c : candidates) {
 			if (c.price() > budget) continue;
 			JsonObject d = NefClient.docFor(c.key(), false);
-			List<double[]> week = NefClient.cofl == null ? null : NefClient.cofl.week(c.key(), true);
+			List<double[]> week = NefClient.cofl == null ? null : NefClient.cofl.weekClean(c.key(), true);
 			if (d == null || week == null) {
 				checking++;
 				continue;

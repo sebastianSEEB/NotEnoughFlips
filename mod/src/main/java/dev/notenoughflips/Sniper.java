@@ -360,7 +360,7 @@ final class Sniper {
 		double[] r = p.ref();
 		double ref = Math.min(r[0], r[1]);
 		JsonObject d = NefClient.docFor(p.key(), true);
-		List<double[]> week = NefClient.cofl == null ? null : NefClient.cofl.week(p.key(), true);
+		List<double[]> week = NefClient.cofl == null ? null : NefClient.cofl.weekClean(p.key(), true);
 		if (d == null || week == null) return PENDING;
 		if (manipulated(d)) return "the market is manipulated (spike / crash / buyout / inflated listings)";
 		Market.Erratic er = Market.erratic(week);

@@ -66,7 +66,8 @@ final class PriceChart {
 
 		boolean manip = d != null && Market.hasSevereFlag(d);
 		String manipText = manip ? firstSevere(d) : null;
-		int bannerH = manip ? 22 : 0;
+		JsonObject cleaned = d == null ? null : HudFormatter.obj(d, "market", "clean");
+		int bannerH = manip ? 22 : cleaned != null ? 11 : 0;
 		int height = 14 + bannerH + 2 + (ph - 22) + 21 + 20;           // title, banner, plot, volume, legend + footer
 		McStyle.panel(p, x, top, x + w, top + height);
 		if (manip) p.fill(x + 2, top + 2, x + w - 2, top + 3, BAD);
@@ -77,6 +78,9 @@ final class PriceChart {
 			p.fill(x + 2, y, x + w - 2, y + 20, 0x55FF0000);
 			p.text("⚠ POSSIBLE MANIPULATION", x + 5, y + 1, BAD);
 			p.text(FcfPanel.fit(manipText, w - 10), x + 5, y + 10, BAD);
+			y += bannerH;
+		} else if (cleaned != null) {
+			p.text(FcfPanel.fit("Red = looked manipulated, left out of the prices", w - 10), x + 5, y + 1, BAD);
 			y += bannerH;
 		}
 		int cx = x + 30, cw = w - 34, cy = y + 2, ch = ph - 22;            // plot area (left 30 px: y labels)
@@ -91,11 +95,15 @@ final class PriceChart {
 		int cols = Math.max(10, cw / 2);
 		double[] avg = new double[cols], mn = new double[cols], mx = new double[cols], vol = new double[cols];
 		int[] n = new int[cols];
+		boolean[] badCol = new boolean[cols];
+		boolean[] badPt = CoflClient.manipulated(pts);
 		List<Double> all = new ArrayList<>();
 		double maxSale = 0;
-		for (double[] pt : pts) {
+		for (int pi = 0; pi < pts.size(); pi++) {
+			double[] pt = pts.get(pi);
 			if (pt[0] < from) continue;
 			int c = (int) Math.min(cols - 1, Math.max(0, (pt[0] - from) / (now - from) * cols));
+			if (badPt[pi]) badCol[c] = true;
 			if (n[c] == 0) { mn[c] = pt[1]; mx[c] = pt[2]; } else { mn[c] = Math.min(mn[c], pt[1]); mx[c] = Math.max(mx[c], pt[2]); }
 			avg[c] += pt[3];
 			vol[c] += pt[4];
@@ -142,6 +150,7 @@ final class PriceChart {
 		for (int c = 0; c < cols; c++) {
 			int x1 = cx + c * cw / cols, x2 = Math.max(x1 + 1, cx + (c + 1) * cw / cols);
 			if (n[c] == 0) { prevY = Integer.MIN_VALUE; continue; }
+			if (cleaned != null && badCol[c]) p.fill(x1, cy, x2, cy + ch, 0x40FF3030);   // left out of the prices
 			int yTop = yOf.applyAsInt(mx[c]), yBot = yOf.applyAsInt(mn[c]);
 			p.fill(x1, Math.min(yTop, yBot), x2, Math.max(yTop, yBot) + 1, BAND);
 			int ya = yOf.applyAsInt(avg[c] / n[c]);
