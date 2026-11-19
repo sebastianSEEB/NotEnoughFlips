@@ -455,10 +455,33 @@ final class FlipPanel {
 			chip(p, cx, y, t, Math.round(cfg.snipeMinPercent) == pct, () -> { cfg.snipeMinPercent = pct; cfg.save(); });
 			cx += chipW(t) + 2;
 		}
-		chip(p, cx, y, "auto-open", cfg.snipeAutoOpen, () -> { cfg.snipeAutoOpen = !cfg.snipeAutoOpen; cfg.save(); });
-		cx += chipW("auto-open") + 2;
 		chip(p, cx, y, cfg.sniper ? "on" : "off", cfg.sniper, () -> { cfg.sniper = !cfg.sniper; cfg.save(); });
 		y += 14;
+		// auto-open: off / at once / after the ✓ check, then its limits
+		p.text("Open by itself:", x + 4, y + 2, MUTED);
+		y += 11;
+		cx = x + 3;
+		String[][] modes = {{"off", "off"}, {"now", "at once"}, {"checked", "after ✓"}};
+		String mode = !cfg.snipeAutoOpen ? "off" : cfg.snipeOpenChecked ? "checked" : "now";
+		for (String[] m : modes) {
+			final String id = m[0];
+			chip(p, cx, y, m[1], mode.equals(id), () -> {
+				cfg.snipeAutoOpen = !id.equals("off");
+				cfg.snipeOpenChecked = id.equals("checked");
+				cfg.save();
+			});
+			cx += chipW(m[1]) + 2;
+		}
+		y += 14;
+		if (cfg.snipeAutoOpen) {
+			y = limitRow(p, x, y, "if ≥", new double[]{40, 50, 60, 70}, cfg.snipeOpenMinPercent, v -> v.intValue() + "%",
+					v -> { cfg.snipeOpenMinPercent = v; cfg.save(); });
+			y = limitRow(p, x, y, "profit ≥", new double[]{500_000, 1_000_000, 5_000_000, 10_000_000}, cfg.snipeOpenMinProfit,
+					HudFormatter::fmt, v -> { cfg.snipeOpenMinProfit = v; cfg.save(); });
+			y = limitRow(p, x, y, "price ≤", new double[]{0, 10_000_000, 50_000_000, 200_000_000}, cfg.snipeOpenMaxPrice,
+					v -> v == 0 ? "purse" : HudFormatter.fmt(v), v -> { cfg.snipeOpenMaxPrice = v; cfg.save(); });
+			y += 2;
+		}
 		if (!Sniper.ready()) {
 			p.text(FcfPanel.fit("Waiting for the first full AH scan (⟳ below)…", w - 8), x + 4, y, DIM);
 			return y + 11;
@@ -504,6 +527,20 @@ final class FlipPanel {
 			y += 13;
 		}
 		return y;
+	}
+
+	/** One row of limit chips: label, then one chip per value (the current one selected). */
+	private static int limitRow(Highlight.Painter p, int x, int y, String label, double[] values, double current,
+			java.util.function.Function<Double, String> fmt, java.util.function.Consumer<Double> set) {
+		p.text(label, x + 4, y + 2, MUTED);
+		int cx = x + 4 + Math.max(width("profit ≥"), width(label)) + 4;
+		for (double v : values) {
+			String t = fmt.apply(v);
+			final double val = v;
+			chip(p, cx, y, t, Math.abs(current - v) < 1e-6, () -> set.accept(val));
+			cx += chipW(t) + 2;
+		}
+		return y + 14;
 	}
 
 	private static int profit(Highlight.Painter p, int x, int y, int w, int bottom) {

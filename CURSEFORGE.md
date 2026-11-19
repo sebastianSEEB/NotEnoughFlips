@@ -22,7 +22,9 @@ Press E and click FLIP, to the right of your inventory. The panel has five tabs:
 
 When a BIN is listed far below the lowest BIN (50% by default, and you can change it), a banner appears at the top of the screen. There are no alerts for markets that look manipulated or erratic, for items that are usually cheap anyway (skins, dyes, runes, cakes and similar), for low-value items or for items that sell slowly.
 
-Click the banner to open the auction, or set the mod to open it for you. If the deal is profitable, the Buy button is highlighted. Pressing it is up to you.
+Click the banner to open the auction, or let the mod open it for you: at once or only after the price check, and only within your own limits (how far under the lowest BIN, minimum profit, maximum price). If the deal is profitable, the Buy button is highlighted. Pressing it is up to you.
+
+The DEALS button above your inventory lists every cheap BIN the mod found in its last AH scan. Click one to open it.
 
 ## Bidder check
 

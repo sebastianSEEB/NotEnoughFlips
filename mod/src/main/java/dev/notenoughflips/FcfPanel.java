@@ -52,6 +52,14 @@ final class FcfPanel {
 	}
 
 	/** Your inventory, and any chest-style menu (SkyBlock menu, Auction House, …). */
+	static boolean isOpen() {
+		return open;
+	}
+
+	static void close() {
+		open = false;
+	}
+
 	private static boolean active(Screen s) {
 		return cfg != null && cfg.fcfButton && (s instanceof InventoryScreen
 				|| s instanceof AbstractContainerScreen<?> acs && acs.getMenu() instanceof ChestMenu);
@@ -321,7 +329,10 @@ final class FcfPanel {
 		}
 		if (mx >= bx && mx <= bx + BTN_W && my >= by && my <= by + BTN_H) {
 			open = !open;
-			if (open) refresh(true);
+			if (open) {
+				refresh(true);
+				DealsPanel.close();                                     // they share the left side
+			}
 			return true;
 		}
 		if (!open) return false;

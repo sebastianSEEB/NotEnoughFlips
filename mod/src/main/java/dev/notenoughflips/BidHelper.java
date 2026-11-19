@@ -81,6 +81,7 @@ final class BidHelper {
 				}
 				try {
 					FcfPanel.paint(s, painter);
+					DealsPanel.paint(s, painter);
 					if (s instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen) Desk.paint(s, painter);
 				} catch (RuntimeException e) {                 // never let a drawing bug break the inventory
 					System.err.println("[NEF] FCF/Trade Desk: " + e);
@@ -94,6 +95,7 @@ final class BidHelper {
 			ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
 				try {
 					if (FlipPanel.click(s, event.x(), event.y())) return false;      // handled by the FLIP panel
+					if (DealsPanel.click(s, event.x(), event.y())) return false;     // handled by the DEALS panel
 				} catch (RuntimeException e) {
 					System.err.println("[NEF] FLIP click: " + e);
 				}

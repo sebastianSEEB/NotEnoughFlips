@@ -46,6 +46,7 @@ final class NefConfig {
 	boolean modScan = true;           // scan the AH for your listings + bids every 15 min while you play (FCF panel / Trade Desk)
 	boolean coflFallback = true;      // use SkyCofl (sky.coflnet.com) prices when our data has too little history
 	boolean fcfButton = true;
+	boolean dealsButton = true;        // "DEALS" button above your inventory: /nef deals as a clickable list on the left
 	boolean deskButton = true;         // "DESK" button above your inventory: the Trade Desk (positions, bazaar, signals, coach)
 	/** Bazaar products shown in the Trade Desk "Bazaar" section and the FCF panel's Bazaar tab (/nef bz add|remove <id>). */
 	java.util.List<String> bazaarWatch = new java.util.ArrayList<>(java.util.Arrays.asList(Desk.DEFAULT_BAZAAR));         // "FCF" button above your inventory: potential free cash flow panel
@@ -115,6 +116,13 @@ final class NefConfig {
 	boolean sniper = true;            // banner + ping when an undervalued BIN is listed (needs flipFeed for the reference prices)
 	double snipeMinPercent = 50;      // alert only when the BIN is at least this much under the lowest BIN of identical copies
 	boolean snipeAutoOpen = false;    // open the auction (/viewauction) by itself on an alert; off by default (a command without a keypress could look like a macro to Hypixel)
+	// auto-open limits: an alert only opens the auction by itself when it is at least this far under the lowest BIN,
+	// makes at least this much after fees, costs at most this much (0 = what's in your purse), and (if set) has passed
+	// the sales-history check first. Everything else still shows the banner.
+	double snipeOpenMinPercent = 50;
+	double snipeOpenMinProfit = 1_000_000;
+	double snipeOpenMaxPrice = 0;
+	boolean snipeOpenChecked = false;
 	double snipeMaxPrice = 0;         // never alert above this price (0 = whatever fits your purse)
 	double snipeMinValue = 1_000_000; // skip items whose lowest BIN is under this (cheap junk gets relisted low all day)
 	double snipeMinSalesPerDay = 2;   // skip items that barely sell (you'd be stuck holding them)

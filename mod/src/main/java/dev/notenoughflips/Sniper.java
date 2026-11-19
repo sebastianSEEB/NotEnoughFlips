@@ -289,6 +289,12 @@ final class Sniper {
 		if (now == null) return;
 		final Alert a = now;
 		Minecraft.getInstance().execute(() -> {
+			if (a.status().equals("ok") && wantsOpen(a, true)) {        // "after ✓" mode: open now that it's checked
+				var scr = BidHelper.currentScreen();
+				boolean free = scr == null || scr instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>;
+				if (free) open(a);
+				else pendingOpen = new Object[]{a, System.currentTimeMillis()};
+			}
 			if (a.status().equals("ok")) {
 				Chat.say(HudFormatter.line("[NEF] ✓ checked: ", HudFormatter.GREEN, a.name() + " is a real snipe (sales history, not manipulated)"
 						+ String.format(Locale.ROOT, ", resell ≈ %s, +%s after fees", HudFormatter.fmt(a.resale()), HudFormatter.fmt(a.profit())), HudFormatter.WHITE));
@@ -398,14 +404,59 @@ final class Sniper {
 			long now = System.currentTimeMillis();
 			var scr = BidHelper.currentScreen();                          // never while typing (chat, signs); menus are fine
 			boolean free = scr == null || scr instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>;
-			if (cfg.snipeAutoOpen && free && now - autoOpenedAt > 5_000L) {
-				autoOpenedAt = now;
-				Cmd.viewAuction(al.uuid());                // the BIN view pops up; buying stays your click
+			if (wantsOpen(al, false)) {
+				if (free && now - autoOpenedAt > 3_000L) open(al);
+				else pendingOpen = new Object[]{al, now};               // chat / sign open: open as soon as it closes
 			}
 			Chat.say(HudFormatter.line("[NEF] ⚡ UNDERVALUED BIN ", HudFormatter.GOLD, al.name() + " " + HudFormatter.fmt(al.price()), HudFormatter.WHITE,
 					String.format(Locale.ROOT, " → resell ≈ %s, +%s (%.0f%%) after fees", HudFormatter.fmt(al.resale()), HudFormatter.fmt(al.profit()), al.pct() * 100),
 					HudFormatter.GREEN, al.status().equals("ok") ? "  ✓ checked" : "  checking history… wait for ✓ before you confirm", HudFormatter.GRAY));
 		});
+	}
+
+	private static volatile Object[] pendingOpen;                   // {Alert, when}
+	private static final java.util.Set<String> autoOpened = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+	/** % under the lowest BIN of identical copies (the resale is just under it). */
+	static double offPercent(Alert a) {
+		double ref = a.resale() / 0.99;
+		return ref > 0 ? 100 * (1 - a.price() / ref) : 0;
+	}
+
+	/**
+	 * Should this alert open the auction by itself? Only with auto-open on, within your limits (how far under the
+	 * lowest BIN, minimum profit, maximum price / your purse) and, if you chose "after ✓", once it has been checked.
+	 */
+	static boolean wantsOpen(Alert a, boolean justChecked) {
+		if (!cfg.snipeAutoOpen || a == null || autoOpened.contains(a.uuid())) return false;
+		boolean ok = a.status().equals("ok");
+		if (a.status().startsWith("bad")) return false;
+		if (cfg.snipeOpenChecked && !ok) return false;
+		if (!cfg.snipeOpenChecked && justChecked) return false;         // it was opened (or skipped) when it first came in
+		if (offPercent(a) + 0.01 < cfg.snipeOpenMinPercent) return false;
+		if (a.profit() < cfg.snipeOpenMinProfit) return false;
+		Double purse = FcfPanel.purse();
+		double max = cfg.snipeOpenMaxPrice > 0 ? cfg.snipeOpenMaxPrice : purse != null ? purse : Double.MAX_VALUE;
+		return a.price() <= max;
+	}
+
+	private static void open(Alert a) {
+		autoOpenedAt = System.currentTimeMillis();
+		autoOpened.add(a.uuid());
+		if (autoOpened.size() > 500) autoOpened.clear();
+		pendingOpen = null;
+		Cmd.viewAuction(a.uuid());                                     // the BIN view pops up; buying stays your click
+	}
+
+	/** Every client tick: an auto-open that had to wait (chat was open) happens once you close it, within 15 s. */
+	static void clientTick() {
+		Object[] po = pendingOpen;
+		if (po == null) return;
+		long now = System.currentTimeMillis();
+		if (now - (long) po[1] > 15_000L) { pendingOpen = null; return; }
+		var scr = BidHelper.currentScreen();
+		boolean free = scr == null || scr instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>;
+		if (free && now - autoOpenedAt > 3_000L) open((Alert) po[0]);
 	}
 
 	static void openLatest() {
