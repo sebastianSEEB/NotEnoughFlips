@@ -12,7 +12,7 @@ final class Keys {
 	private Keys() {}
 
 	static void register() {
-		ordersHud = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.notenoughflips.orders_hud", InputConstants.Type.KEYSYM,
+		ordersHud = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.notenoughflips.orders_hud",
 				InputConstants.KEY_O, KeyMapping.Category.MISC));
 	}
 
