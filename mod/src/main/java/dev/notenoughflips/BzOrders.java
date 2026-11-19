@@ -210,18 +210,87 @@ final class BzOrders {
 		}
 	}
 
-	/** "[Bazaar] Your Buy Order for 64x Enchanted Diamond was filled!" */
+	private static final Pattern SETUP_CHAT = Pattern.compile("\\[Bazaar\\] (Buy Order|Sell Offer) Setup! ([0-9][0-9,]*)x (.+?) for ([0-9][0-9,]*(?:\\.[0-9]+)?) coins", Pattern.CASE_INSENSITIVE);
+	private static final Pattern CLAIM_BUY_CHAT = Pattern.compile("\\[Bazaar\\] Claimed ([0-9][0-9,]*)x (.+?) worth", Pattern.CASE_INSENSITIVE);
+	private static final Pattern CLAIM_SELL_CHAT = Pattern.compile("\\[Bazaar\\] Claimed [0-9][0-9,.]* coins from selling ([0-9][0-9,]*)x (.+?) at", Pattern.CASE_INSENSITIVE);
+	private static final Pattern CANCEL_ITEMS_CHAT = Pattern.compile("\\[Bazaar\\] Cancelled! Refunded ([0-9][0-9,]*)x (.+?) from cancelling", Pattern.CASE_INSENSITIVE);
+	private static final Pattern CANCEL_COINS_CHAT = Pattern.compile("\\[Bazaar\\] Cancelled! Refunded ([0-9][0-9,.]*) coins from cancelling", Pattern.CASE_INSENSITIVE);
+
+	private static int n(String s) {
+		return (int) Math.round(Double.parseDouble(s.replace(",", "")));
+	}
+
+	/**
+	 * Keeps your orders live from Hypixel's chat, without reopening "Your Bazaar Orders":
+	 *   "[Bazaar] Buy Order Setup! 64x Enchanted Diamond for 95,000 coins."     → new order (price = total / amount)
+	 *   "[Bazaar] Your Buy Order for 64x Enchanted Diamond was filled!"         → filled, waiting to be claimed
+	 *   "[Bazaar] Claimed 64x Enchanted Diamond worth …" / "Claimed … coins from selling 64x …" → gone (or fewer left)
+	 *   "[Bazaar] Cancelled! Refunded …"                                          → gone
+	 * The menu stays the source of truth: opening it corrects everything (partial fills too).
+	 */
 	static void onChat(String plain) {
-		Matcher m = FILLED_CHAT.matcher(plain);
-		if (!m.find()) return;
-		String side = m.group(1).toLowerCase(Locale.ROOT).startsWith("buy") ? "BUY" : "SELL";
-		String name = m.group(3).trim();
 		List<Order> l = new ArrayList<>(orders);
-		boolean changed = l.removeIf(o -> o.side().equals(side) && o.name().equalsIgnoreCase(name));
+		boolean changed = false;
+		long now = System.currentTimeMillis();
+		Matcher m = SETUP_CHAT.matcher(plain);
+		if (m.find()) {
+			String side = m.group(1).toLowerCase(Locale.ROOT).startsWith("buy") ? "BUY" : "SELL";
+			int amount = n(m.group(2));
+			String name = m.group(3).trim();
+			double total = Double.parseDouble(m.group(4).replace(",", ""));
+			var names = data == null ? null : data.itemNames();
+			String id = names == null ? null : names.get(name.toLowerCase(Locale.ROOT));
+			l.add(new Order(side, id == null ? name.toUpperCase(Locale.ROOT).replace(' ', '_') : id, name, amount > 0 ? total / amount : total, amount, 0, now));
+			changed = true;
+		}
+		m = FILLED_CHAT.matcher(plain);
+		if (m.find()) {
+			String side = m.group(1).toLowerCase(Locale.ROOT).startsWith("buy") ? "BUY" : "SELL";
+			String name = m.group(3).trim();
+			for (int i = 0; i < l.size(); i++) {
+				Order o = l.get(i);
+				if (o.side().equals(side) && o.name().equalsIgnoreCase(name) && o.filled() < o.amount()) {
+					l.set(i, new Order(o.side(), o.id(), o.name(), o.price(), o.amount(), o.amount(), now));
+					changed = true;
+					break;
+				}
+			}
+			if (cfg != null && cfg.alertSound) Chat.ping();
+		}
+		m = CLAIM_BUY_CHAT.matcher(plain);
+		if (m.find()) changed |= takeOut(l, "BUY", m.group(2).trim(), n(m.group(1)));
+		m = CLAIM_SELL_CHAT.matcher(plain);
+		if (m.find()) changed |= takeOut(l, "SELL", m.group(2).trim(), n(m.group(1)));
+		m = CANCEL_ITEMS_CHAT.matcher(plain);
+		if (m.find()) changed |= takeOut(l, "SELL", m.group(2).trim(), Integer.MAX_VALUE);
+		m = CANCEL_COINS_CHAT.matcher(plain);
+		if (m.find()) {                                                   // a buy order: find it by the coins refunded
+			double coins = Double.parseDouble(m.group(1).replace(",", ""));
+			Order best = null;
+			double diff = Double.MAX_VALUE;
+			for (Order o : l) {
+				if (!o.side().equals("BUY")) continue;
+				double d = Math.abs(o.price() * (o.amount() - o.filled()) - coins);
+				if (d < diff) { diff = d; best = o; }
+			}
+			if (best != null && diff <= Math.max(1, coins * 0.02)) { l.remove(best); changed = true; }
+		}
 		if (changed) {
 			orders = l;
 			save();
 		}
-		if (cfg != null && cfg.alertSound) Chat.ping();
+	}
+
+	/** Claimed / cancelled qty of an order: fewer left, or gone. */
+	private static boolean takeOut(List<Order> l, String side, String name, int qty) {
+		for (int i = 0; i < l.size(); i++) {
+			Order o = l.get(i);
+			if (!o.side().equals(side) || !o.name().equalsIgnoreCase(name)) continue;
+			int left = qty == Integer.MAX_VALUE ? 0 : o.amount() - qty;
+			if (left <= 0) l.remove(i);
+			else l.set(i, new Order(o.side(), o.id(), o.name(), o.price(), left, Math.max(0, o.filled() - qty), o.seen()));
+			return true;
+		}
+		return false;
 	}
 }
