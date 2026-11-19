@@ -332,16 +332,20 @@ def analyse(series: dict[str, list[tuple]], live: dict[str, dict], step_ms: int,
                 continue
             signals.append(_sig("cheap", p, nm(p), "buy", cost, target, edge, conf, s["z"], units_h(p), why,
                                 f"{nm(p)} dropped {abs(dev) * 100:.0f}%",
-                                f"Buy order at {_c(cost)}, sell offer back near {_c(target)} when it recovers"))
+                                f"Buy order at {_c(cost)}, sell offer back near {_c(target)} when it recovers. Give it 1-2 days: "
+                                f"in the backtest most of these recovered within 24-48 h, not within 6 h"))
         else:
             sell_now = l["sell"]
             target = s["ref_sell"] * adj
             edge = sell_now / max(1e-9, target) - 1
             if edge < MIN_EDGE:
                 continue
-            signals.append(_sig("rich", p, nm(p), "sell", sell_now, target, edge, conf, s["z"], units_h(p), why,
+            # backtest: after a jump like this the price usually kept rising for another day or two (selling at
+            # once lost 1-4 % vs holding), so this is a warning not to buy into it, not a reason to dump
+            why.append("backtest: jumps like this usually kept going for 1-2 days")
+            signals.append(_sig("rich", p, nm(p), "watch", sell_now, target, edge, conf, s["z"], units_h(p), why,
                                 f"{nm(p)} jumped {dev * 100:.0f}%",
-                                f"Sell what you hold now ({_c(sell_now)} instantly); don't buy until it's back under {_c(s['ref_buy'] * adj)}"))
+                                f"Don't buy into the jump; if you hold some, there's no rush to sell. It's back to normal under {_c(s['ref_buy'] * adj)}"))
 
     # 1b) group events: correlated products that all made a big move the same way
     big = {p: d["move"] for p, d in self_dev.items() if abs(d["move"]) >= BIG_MOVE and abs(d["z"]) >= Z_SELF}
@@ -433,10 +437,12 @@ def analyse(series: dict[str, list[tuple]], live: dict[str, dict], step_ms: int,
                f"{nm(cheap)} is {g * 100:.1f}% cheap relative to {nm(rich)} ({abs(z):.1f}σ)",
                f"gaps like this have closed half-way in ~{half:.0f}h"]
         conf = "high" if c["rho"] >= 0.75 and abs(z) >= 2.5 and half <= 24 else "medium"
-        signals.append(_sig("pair", cheap, nm(cheap), "buy" if edge >= MIN_EDGE else "prefer", cost, target, edge, conf, z,
+        # backtest (tools/backtest_signals.py): buying the lagging one of a pair had no edge (hit 0-15 %,
+        # median return below zero at 6-48 h), so a pair is only a hint for which of the two to buy if you need one
+        why.append("backtest: pair gaps didn't close reliably enough to trade on their own")
+        signals.append(_sig("pair", cheap, nm(cheap), "prefer", cost, target, edge, "low", z,
                             units_h(cheap), why, f"{nm(cheap)} lags {nm(rich)}",
-                            (f"Buy {nm(cheap)} (order {_c(cost)}): it usually catches up with {nm(rich)}" if edge >= MIN_EDGE
-                             else f"If you need one of the two, buy {nm(cheap)} now, it's the cheaper of the pair"),
+                            f"If you need one of the two, buy {nm(cheap)} now, it's the cheaper of the pair",
                             other=rich, rho=c["rho"]))
 
     # 3) lead-lag: B follows A (only when the history is fresh: the lead move must be the latest one)

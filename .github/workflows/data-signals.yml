@@ -18,7 +18,7 @@ concurrency:
 jobs:
   signals:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -29,7 +29,11 @@ jobs:
       - run: python tests/test_bzsignals.py
       - run: git clone -q --depth 1 https://github.com/NotEnoughUpdates/NotEnoughUpdates-REPO.git neu
       - run: set -o pipefail; python tools/bz_signals.py out neu 260 | tee -a $GITHUB_STEP_SUMMARY
+      - name: Backtest the signals on this week (walk-forward, no look-ahead)
+        run: set -o pipefail; python tools/backtest_signals.py out/raw_inputs.json out/backtest.json | tee -a $GITHUB_STEP_SUMMARY
+        continue-on-error: true
       - run: |
           tools/pages.sh clone site
           mkdir -p site/data && cp out/bz_signals.json site/data/
+          [ -f out/backtest.json ] && cp out/backtest.json site/data/ || true
           tools/pages.sh push site

@@ -968,7 +968,7 @@ final class Desk {
 			String a = str(o, "action");
 			boolean keep = switch (filter) {
 				case "buy" -> "buy".equals(a) || "prefer".equals(a);
-				case "sell" -> "sell".equals(a) || "avoid".equals(a);
+				case "sell" -> "sell".equals(a) || "avoid".equals(a) || "watch".equals(a);
 				case "craft" -> "craft".equals(a) || "premium".equals(str(o, "type"));
 				default -> true;
 			};
@@ -1005,11 +1005,54 @@ final class Desk {
 		return "high".equals(c) ? GREEN : "medium".equals(c) ? 0xFFB8960C : MUTED;
 	}
 
+	/**
+	 * How the suggestions did over the last week: each signal re-made from the bars up to that moment only, then
+	 * followed forward (tools/backtest_signals.py). "Won" = made money after tax; "Market" = buying anything liquid
+	 * at the same moments, for comparison.
+	 */
+	private static void backtest(Highlight.Painter p, int x, int y, int w, int h) {
+		JsonObject bt = data.backtest();
+		if (bt == null || !bt.has("groups")) {
+			p.text("Loading the backtest… (made with the bazaar signals, every 2 h)", x, y + 2, MUTED);
+			return;
+		}
+		List<Row> rows = new ArrayList<>();
+		for (JsonElement e : bt.getAsJsonArray("groups")) {
+			JsonObject g = e.getAsJsonObject();
+			String type = str(g, "type"), conf = str(g, "conf"), act = str(g, "action"), hz = str(g, "horizon");
+			int n = (int) d(g, "n");
+			if ("ALL".equals(type) || n < 8 || !("24h".equals(hz) || "48h".equals(hz))) continue;
+			String label = switch (type == null ? "" : type) {
+				case "cheap" -> "Dropped, buy";
+				case "rich" -> "Jumped (sell now?)";
+				case "pair" -> "Lagging pair";
+				case "follow" -> "Follows a leader";
+				case "event" -> "Market event";
+				default -> type;
+			} + " · " + conf;
+			double med = d(g, "median_ret"), won = d(g, "win_rate");
+			Double base = HudFormatter.num(g, "baseline_median");
+			rows.add(new Row(new String[]{label, hz, String.valueOf(n), Math.round(100 * d(g, "hit_rate")) + "%",
+					Math.round(100 * won) + "%", String.format(Locale.ROOT, "%+.1f%%", 100 * med),
+					base == null ? "-" : String.format(Locale.ROOT, "%+.1f%%", 100 * base)},
+					new int[]{0, MUTED, MUTED, 0, won >= 0.6 ? GREEN : won < 0.45 ? RED : 0, med > 0 ? GREEN : RED, MUTED},
+					"buy".equals(act) ? "B" : "S", "buy".equals(act) ? 0xFF3D8BD9 : 0xFFF26A1B, null));
+		}
+		table(p, x, y, w, h, new Col[]{new Col("Signal", 0.34, false), new Col("Hold", 0.08, true), new Col("Trades", 0.10, true),
+				new Col("Hit", 0.10, true), new Col("Won", 0.10, true), new Col("Median", 0.14, true), new Col("Market", 0.14, true)}, rows,
+				"Last week, no look-ahead · Hit = reached the target · Won = profit after tax · S rows: + = selling early was right");
+	}
+
 	private static void signals(Highlight.Painter p, int x, int y, int w, int h) {
 		JsonObject sj = data.bzSignals();
 		int cx = chip(p, x, y, "Suggestions", sigView.equals("suggest"), () -> { sigView = "suggest"; page = 0; });
 		cx = chip(p, cx, y, "Correlations", sigView.equals("corr"), () -> { sigView = "corr"; page = 0; });
+		cx = chip(p, cx, y, "Backtest", sigView.equals("backtest"), () -> { sigView = "backtest"; page = 0; });
 		cx += 10;
+		if (sigView.equals("backtest")) {
+			backtest(p, x, y + 16, w, h - 16);
+			return;
+		}
 		if (sigView.equals("suggest")) {
 			for (String[] f : new String[][]{{"all", "All"}, {"buy", "Buy"}, {"sell", "Sell"}, {"craft", "Craft"}}) {
 				final String id = f[0];
@@ -1072,6 +1115,7 @@ final class Desk {
 		if ("event".equals(str(o, "type"))) size = "Market event: these prices just changed for a reason. Flip lists ignore the members until it settles.";
 		else if ("sell".equals(action)) size = "For what you hold: about " + fmt(price * edge) + " more per unit than its usual price.";
 		else if ("prefer".equals(action)) size = "Use this one when you need the item; no flip margin after tax.";
+		else if ("watch".equals(action)) size = "Jumps like this usually kept rising for 1-2 days in the backtest: don't buy into it.";
 		else size = qty < 1 ? "Your flip budget is below one unit." : String.format(Locale.ROOT, "Size: %,d units (%s of your %s flip budget) → ≈ +%s if it gets back to target",
 				qty, fmt(qty * price), fmt(budget), fmt(qty * price * edge));
 		p.text(FcfPanel.fit(size, w), x, ly + 1, INK);

@@ -67,7 +67,7 @@ The mod warns you, with a red box and a short reason on the button, before the c
 - **Manipulated or brand-new items:** pumped sales are left out of the price, and items with under 3 days of sales are marked as not settled.
 - **Your own listings:** in Create BIN Auction, a price 20% or more under the lowest BIN (a typo or misclick) is marked red, and one 50% or more over it is marked as unlikely to sell.
 - **Bazaar traps:** Sell Instantly pays 30% or more under the product's 7-day normal (a flash-crash buy order), or Buy Instantly costs 40% or more over it (a pump). Products whose buy-sell gap suddenly widens to several times its usual size are left out of flips.
-- **Flip lists stay clean:** bazaar products that are pumped, crashing or far above their peers are left out, and DEALS only lists BINs whose resale is backed by real sales.
+- **Flip lists stay clean:** bazaar products that are pumped, crashing or caught in a market-wide crash or pump are left out, and DEALS only lists BINs whose resale is backed by real sales.
 - **Fees:** the AH listing fee and claim tax, with Derpy's higher claim tax applied automatically while he is mayor. The bazaar tax is 1.25% by default; set yours with `/nef bztax 1.125` after the Bazaar Flipper upgrade.
 - **New BINs:** Hypixel holds a new BIN for 20 seconds before anyone can buy it, so snipe alerts count down until the Buy button works.
 

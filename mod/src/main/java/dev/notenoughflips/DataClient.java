@@ -231,6 +231,19 @@ final class DataClient {
 		return bzWeek.get(id);
 	}
 
+	private volatile JsonObject backtest;
+	private volatile long backtestAt;
+
+	/** {dataUrl}/backtest.json: how the bazaar signals did over the last week (tools/backtest_signals.py). Hourly. */
+	JsonObject backtest() {
+		long now = System.currentTimeMillis();
+		if (now - backtestAt > 3_600_000L && cfg.dataUrl != null && !cfg.dataUrl.isBlank()) {
+			backtestAt = now;
+			getJson(cfg.dataUrl + "/backtest.json", 10).whenComplete((j, e) -> { if (j != null) backtest = j; });
+		}
+		return backtest;
+	}
+
 	/** bazaarNormal() without fetching (null when not loaded yet). */
 	double[] bazaarNormalCached(String id) {
 		if (id == null) return null;
