@@ -107,6 +107,7 @@ public final class NefClient implements ClientModInitializer {
 			if (client.player != null && ticks[0] % 200 == 0) {          // every 10 s
 				try {
 					MyWallet.tick();                                   // your bank (with your API key), every 5 min
+					Mayor.tick(data);                                  // Derpy changes the AH tax
 					AhMarket.tick();                                   // AH coins traded per day (Bazaar → Market size)
 					AhScanner.tick(config);                                // scans every scanMinutes
 					BzOrders.check();                                      // bazaar orders outbid / undercut (every 30 s)
@@ -441,6 +442,18 @@ public final class NefClient implements ClientModInitializer {
 									ctx.getSource().sendFeedback(Component.literal("[NEF] Forecasts OFF: flips use live prices only."));
 									return 1;
 								})))
+						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("bztax").executes(ctx -> {
+									ctx.getSource().sendFeedback(Component.literal("[NEF] Bazaar tax used: " + config.bazaarTaxPercent
+											+ "% · 1.25% by default, lower with the Bazaar Flipper upgrade (Elizabeth's Community Shop): /nef bztax 1.125"));
+									return 1;
+								})
+								.then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<FabricClientCommandSource, Double>argument("percent",
+										com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0, 5)).executes(ctx -> {
+											config.bazaarTaxPercent = com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "percent");
+											config.save();
+											ctx.getSource().sendFeedback(Component.literal("[NEF] Bazaar tax set to " + config.bazaarTaxPercent + "%: every bazaar profit uses it."));
+											return 1;
+										})))
 						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("orders").executes(ctx -> {
 									config.bzHud = !config.bzHud;
 									config.save();

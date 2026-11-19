@@ -53,9 +53,13 @@ final class Bazaar {
 		if (all.isEmpty()) return ranked;
 		List<Market.BzFlip> out = new ArrayList<>();
 		java.util.Set<String> event = eventMembers(data.bzSignals());
+		java.util.Set<String> rich = pumped(data.bzSignals());
 		for (Map.Entry<String, DataClient.Live> e : all.entrySet()) {
 			if (event.contains(e.getKey())) continue;             // part of a market event (crash / pump): old spreads are no guide
+			if (rich.contains(e.getKey())) continue;              // priced far above its peers right now: don't buy into it
 			DataClient.Live l = e.getValue();
+			double[] normal = data.bazaarNormalCached(e.getKey());
+			if (trap(l, normal) != null) continue;                 // pumped or crashing vs its own 7-day level
 			Market.BzFlip f = flip(cfg, e.getKey(), l, budget);
 			if (f == null || f.perUnit() <= 0 || f.pct() < 0.02 || f.pct() > cfg.bazaarMaxSpreadPercent / 100.0) continue;
 			if (f.unitsPerHour() < 10 || f.qty() < 1 || f.totalProfit() < 1000) continue;
@@ -65,6 +69,7 @@ final class Bazaar {
 		}
 		out.sort((a, b) -> Double.compare(b.coinsPerHour(), a.coinsPerHour()));
 		for (int i = 0; i < Math.min(25, out.size()); i++) data.bazaarSlide(out.get(i).id());   // queue 7-day trends for the top
+		for (int i = 0; i < Math.min(40, out.size()); i++) data.bazaarNormal(out.get(i).id());  // and their normal level (trap check)
 		ranked = out.size() > 50 ? new ArrayList<>(out.subList(0, 50)) : out;
 		Map<String, Integer> r = new HashMap<>();
 		for (int i = 0; i < ranked.size(); i++) r.put(ranked.get(i).id(), i + 1);
@@ -72,6 +77,32 @@ final class Bazaar {
 		rankedAt = now;
 		rankedBudget = budget;
 		return ranked;
+	}
+
+	/**
+	 * Why a product is a trap right now, or null: its instant prices are ≥ 50 % above (pumped) or ≥ 40 % below
+	 * (crashing / flash-crash buy orders) its own median of the last 7 days. normal = {median buy, median sell, hours}.
+	 */
+	static String trap(DataClient.Live l, double[] normal) {
+		if (l == null || normal == null || normal[0] <= 0 || normal[1] <= 0) return null;
+		if (l.buy() > normal[0] * 1.5 || l.sell() > normal[1] * 1.5)
+			return String.format(java.util.Locale.ROOT, "pumped: %.0f%% above its 7-day level", 100 * (Math.max(l.buy() / normal[0], l.sell() / normal[1]) - 1));
+		if (l.sell() > 0 && l.sell() < normal[1] * 0.6 || l.buy() > 0 && l.buy() < normal[0] * 0.6)
+			return String.format(java.util.Locale.ROOT, "crashing: %.0f%% under its 7-day level", 100 * (1 - Math.min(l.sell() / normal[1], l.buy() / normal[0])));
+		return null;
+	}
+
+	/** Products the signals call far too expensive right now (high-confidence "sell" / "avoid"). */
+	static java.util.Set<String> pumped(com.google.gson.JsonObject sj) {
+		java.util.Set<String> out = new java.util.HashSet<>();
+		if (sj == null || !sj.has("signals")) return out;
+		for (com.google.gson.JsonElement e : sj.getAsJsonArray("signals")) {
+			com.google.gson.JsonObject o = e.getAsJsonObject();
+			String a = HudFormatter.str(o, "action");
+			if (("sell".equals(a) || "avoid".equals(a)) && "high".equals(HudFormatter.str(o, "conf")) && o.has("id"))
+				out.add(o.get("id").getAsString());
+		}
+		return out;
 	}
 
 	/** Products in a current market event (Trade Desk → Market → Tips, "!"): kept out of the flip list until it settles. */

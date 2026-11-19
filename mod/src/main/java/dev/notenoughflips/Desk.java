@@ -251,6 +251,7 @@ final class Desk {
 			{"stock", "My Auctions", "everything you have on the auction house"},
 			{"buying", "Bids", "auctions you bid on"},
 			{"selling", "Listings", "items you are selling"},
+			{"holdings", "Bought", "what you bought: paid, now, target, progress"},
 			{"finance", "Coins", "your coins and your profit"},
 			{"market", "Bazaar", "prices, tips and market size"}};
 
@@ -304,7 +305,7 @@ final class Desk {
 		p.text(title, x + 8, y + 7, INK);
 		p.text(FcfPanel.fit("- " + sub, w - w(title) - 24), x + 12 + w(title), y + 7, MUTED);
 		int bx = x + 8, by = y + 22, bw = w - 16, bh = h - 28;
-		boolean needsAh = !win.equals("market") && !win.equals("home");
+		boolean needsAh = !win.equals("market") && !win.equals("home") && !win.equals("holdings");
 		if (needsAh && n == null) {
 			p.text(FcfPanel.report() == null ? "Loading your auctions…" : "No auctions found yet. Your auctions are checked every 15 min.", bx, by + 4, MUTED);
 			p.text("Tip: open the FLIP panel (press E) to find something to buy or sell.", bx, by + 16, MUTED);
@@ -314,6 +315,7 @@ final class Desk {
 			case "stock" -> stock(p, bx, by, bw, bh, pos, n);
 			case "buying" -> buying(p, bx, by, bw, bh, pos);
 			case "selling" -> selling(p, bx, by, bw, bh, pos);
+			case "holdings" -> holdings(p, bx, by, bw, bh);
 			case "finance" -> coins(p, bx, by, bw, bh, f, n, pos);
 			case "market" -> market(p, bx, by, bw, bh);
 			default -> home(p, bx, by, bw, bh, n, pos);
@@ -609,6 +611,99 @@ final class Desk {
 		}
 		ry += 32;
 		p.text(FcfPanel.fit("Profit = what you sold for after tax, minus what you paid. More: /nef profit", w), x, ry, MUTED);
+	}
+
+	// ================================================================== Bought (holdings)
+	private static String holdFilter = "all";
+
+	/** Item id for a bought item: the plan's id, else its name looked up (reforge words dropped). */
+	private static String idFor(String item, Holdings.Plan plan) {
+		if (plan != null && plan.key != null) return plan.key;
+		var names = data == null ? null : data.itemNames();
+		if (names == null) return null;
+		String[] w = Holdings.norm(item).split(" ");
+		for (int drop = 0; drop <= Math.min(2, w.length - 1); drop++) {
+			String id = names.get(String.join(" ", java.util.Arrays.copyOfRange(w, drop, w.length)));
+			if (id != null) return id;
+		}
+		return null;
+	}
+
+	/**
+	 * Everything you bought and still hold: what you paid, what it would sell for now, the target (the price the flip,
+	 * snipe, deal or mispricing expected), how far it has come (0 % = still at your price, 100 % = target reached) and
+	 * the profit if you sold now. Below: profit already made per reason (sold, last 7 days).
+	 */
+	private static void holdings(Highlight.Painter p, int x, int y, int w, int h) {
+		int cx = x;
+		for (String[] f : new String[][]{{"all", "All"}, {"ah", "Auction House"}, {"bz", "Bazaar"}, {"mis", "Mispricing"}}) {
+			final String id = f[0];
+			cx = chip(p, cx, y, f[1], holdFilter.equals(id), () -> { holdFilter = id; page = 0; });
+		}
+		double tax = cfg.bazaarTaxPercent / 100.0;
+		List<Row> rows = new ArrayList<>();
+		double open = 0, unreal = 0;
+		for (ProfitLog.Lot lot : ProfitLog.openLots()) {
+			Holdings.Plan plan = Holdings.forBuy(lot.ts(), lot.item());
+			boolean ah = "AH".equals(lot.market());
+			boolean keep = switch (holdFilter) {
+				case "ah" -> ah;
+				case "bz" -> !ah;
+				case "mis" -> plan != null && "Mispricing".equals(plan.source);
+				default -> true;
+			};
+			if (!keep) continue;
+			String id = idFor(lot.item(), plan);
+			Double now = null, target = plan != null ? plan.target : null;
+			if (ah) {
+				MarketBook.Item b = id == null ? null : MarketBook.get(id);
+				JsonObject doc = id == null ? null : NefClient.docFor(id, false);
+				Double lowest = b != null ? Double.valueOf(b.lowest()) : doc == null ? null : HudFormatter.num(HudFormatter.obj(doc, "market", "listed"), "lowest");
+				if (lowest != null) now = Market.undercut(lowest);
+				if (target == null && doc != null) target = Verdict.fair(doc);
+			} else if (id != null) {
+				DataClient.Live l = data.live(id);
+				if (l != null && l.buy() > 0) now = l.buy() - 0.1;                   // a sell offer just under the cheapest
+			}
+			double cost = lot.unitCost();
+			Double netNow = now == null ? null : ah ? Verdict.netAfterFees(now) : now * (1 - tax);
+			Double ifSold = netNow == null ? null : (netNow - cost) * lot.qty();
+			open += cost * lot.qty();
+			if (ifSold != null) unreal += ifSold;
+			String prog = "-";
+			int pc = MUTED;
+			if (now != null && target != null && target > cost * 1.0001) {
+				double pr = (now - cost) / (target - cost);
+				prog = pr >= 1 ? "✓ " + Math.round(pr * 100) + "%" : Math.round(Math.max(-99, pr * 100)) + "%";
+				pc = pr >= 1 ? GREEN : pr >= 0 ? YELLOW : RED;
+			}
+			long ageH = (System.currentTimeMillis() - lot.ts()) / 3_600_000L;
+			String why = plan == null ? (ah ? "AH buy" : "bazaar buy") : plan.source;
+			final String name = Holdings.norm(lot.item()).isEmpty() ? lot.item() : lot.item().replaceAll("§.", "");
+			rows.add(new Row(new String[]{name, why, fmtQty(lot.qty()), fmt(cost), now == null ? "…" : fmt(now),
+					target == null ? "-" : fmt(target), prog, ifSold == null ? "-" : signed(ifSold), ageH < 48 ? ageH + "h" : (ageH / 24) + "d"},
+					new int[]{0, MUTED, 0, 0, 0, 0, pc, ifSold == null ? MUTED : ifSold >= 0 ? GREEN : RED, MUTED}, ah ? "A" : "B",
+					ah ? 0xFFF26A1B : 0xFF3D8BD9, () -> {
+						String clean = name.replaceAll("[^A-Za-z0-9 '()\\-]", "").trim();
+						if (ah) Cmd.ahSearch(clean); else Cmd.bazaar(clean);
+					}));
+		}
+		StringBuilder made = new StringBuilder("Sold, last 7 days: ");
+		var by = Holdings.realizedBySource(ProfitLog.startOfDay(6));
+		if (by.isEmpty()) made.append("nothing yet");
+		boolean first = true;
+		for (var e : by.entrySet()) {
+			made.append(first ? "" : " · ").append(e.getKey()).append(' ').append(signed(e.getValue()[0])).append(" (").append((int) e.getValue()[1]).append(')');
+			first = false;
+		}
+		p.text(FcfPanel.fit("In stock " + fmt(open) + " · if sold now " + signed(unreal), w - cx + x - 6), cx + 4, y, unreal >= 0 ? GREEN : RED);
+		table(p, x, y + 14, w, h - 14, new Col[]{new Col("Item", 0.25, false), new Col("Why", 0.12, false), new Col("Qty", 0.06, true),
+				new Col("Paid", 0.10, true), new Col("Now", 0.10, true), new Col("Goal", 0.10, true), new Col("Done", 0.09, true),
+				new Col("If sold", 0.12, true), new Col("Age", 0.06, true)}, rows, made.toString());
+	}
+
+	private static String fmtQty(double q) {
+		return q == Math.rint(q) ? String.valueOf((long) q) : String.format(Locale.ROOT, "%.1f", q);
 	}
 
 	// ================================================================== Coins: tabs
@@ -983,7 +1078,11 @@ final class Desk {
 		ly += 13;
 		int bx = x;
 		String b1 = "Open " + name + " in Bazaar";
-		button(p, bx, ly - 3, bx + w(b1) + 10, ly + 10, b1, true, () -> { on = false; FlipPanel.pick(id, name); });
+		button(p, bx, ly - 3, bx + w(b1) + 10, ly + 10, b1, true, () -> {
+			on = false;
+			if ("buy".equals(action) || "prefer".equals(action)) FlipPanel.pick(id, name, "Mispricing", d(o, "target"));
+			else FlipPanel.pick(id, name);
+		});
 		bx += w(b1) + 13;
 		boolean watched = bazaarList().contains(id);
 		String b2 = watched ? "Watching" : "+ Watch";

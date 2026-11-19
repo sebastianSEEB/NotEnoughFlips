@@ -52,7 +52,8 @@ final class PriceChart {
 		int[] box = GuiPos.box(s);
 		int leftSpace = box[0] - 8, rightSpace = s.width - (box[0] + box[2]) - 8;
 		int w, x;
-		if (leftSpace >= 150 || leftSpace >= rightSpace) {                  // left of the menu (over the FCF panel)
+		boolean leftBusy = DealsPanel.isOpen() && rightSpace >= 110;           // the DEALS list is on the left: use the right
+		if (!leftBusy && (leftSpace >= 150 || leftSpace >= rightSpace)) {    // left of the menu (over the FCF panel)
 			w = Math.min(320, Math.max(110, leftSpace));
 			x = Math.max(2, box[0] - 6 - w);
 		} else {

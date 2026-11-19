@@ -261,7 +261,7 @@ final class FlipPanel {
 					+ Market.eta(f.liq().etaHours()) + " · " + f.liq().confidence() + Forecasts.tag(f.forecast());
 			String uuid = f.c().uuid();
 			row(p, x, y, w, (i + 1) + ". " + f.c().name(), "+" + HudFormatter.fmt(f.profit()), GOOD, detail,
-					() -> Cmd.viewAuction(uuid));
+					() -> { Holdings.intend(f.c().name(), f.c().key(), "AH flip", f.resale()); Cmd.viewAuction(uuid); });
 			y += R2;
 		}
 		p.text(FcfPanel.fit("click = open it, check the tooltip", w - 8), x + 4, y, DIM);
@@ -365,6 +365,11 @@ final class FlipPanel {
 	 * Amount and price are re-computed from the live bazaar at click time.
 	 */
 	private static void copyBazaar(Market.BzFlip snap, String name) {
+		copyBazaar(snap, name, "Bazaar flip", 0);
+	}
+
+	/** source / target: why you're buying it and the unit price you expect (0 = the flip's sell offer). */
+	private static void copyBazaar(Market.BzFlip snap, String name, String source, double target) {
 		long now = System.currentTimeMillis();
 		DataClient.Live live = data.live(snap.id());
 		Market.BzFlip f = live != null ? Bazaar.flip(cfg, snap.id(), live, budget()) : snap;
@@ -375,6 +380,7 @@ final class FlipPanel {
 		pendingName = name;
 		stageAt = now;
 		var kb = Minecraft.getInstance().keyboardHandler;
+		if (stage == 1) Holdings.intend(name, f.id(), source, target > 0 ? target : f.offer());   // remember why you bought it
 		switch (stage) {
 			case 1 -> {
 				kb.setClipboard(name);
@@ -401,10 +407,15 @@ final class FlipPanel {
 
 	/** Start the Bazaar click flow (open / copy name → amount → price) for any product, e.g. from Trade Desk → Market → Tips. */
 	static void pick(String id, String name) {
+		pick(id, name, "Bazaar flip", 0);
+	}
+
+	/** pick() for a reason with a target price (bazaar mispricing: the price it should go back to). */
+	static void pick(String id, String name, String source, double target) {
 		DataClient.Live live = data.live(id);
 		Market.BzFlip f = live == null ? null : Bazaar.flip(cfg, id, live, budget());
 		if (f == null) f = new Market.BzFlip(id, live == null ? 0 : live.sell() + 0.1, live == null ? 0 : live.buy() - 0.1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0);
-		copyBazaar(f, name);
+		copyBazaar(f, name, source, target);
 	}
 
 	private static int craft(Highlight.Painter p, int x, int y, int w, int bottom) {
@@ -553,7 +564,7 @@ final class FlipPanel {
 			String detail = HudFormatter.fmt(a.price()) + " → " + HudFormatter.fmt(a.resale()) + " · " + (ago < 1 ? "just now" : ago + "m ago")
 					+ (bad ? " · " + a.status().substring(5) : "");
 			row(p, x, y, w, mark + a.name(), right, bad ? BAD : ok ? GOOD : WARN, detail,
-					bad ? null : () -> Cmd.viewAuction(a.uuid()));
+					bad ? null : () -> { Holdings.intend(a.name(), a.key(), "Snipe", a.resale() / Math.max(1, a.count())); Cmd.viewAuction(a.uuid()); });
 			y += 21;
 		}
 		List<Sniper.Watch> wl = Sniper.watchList();

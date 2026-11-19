@@ -32,13 +32,16 @@ import net.fabricmc.loader.api.FabricLoader;
 final class ProfitLog {
 	record Trade(long ts, String side, String market, String item, double qty, double coins) {}
 
-	record Flip(long ts, String item, double qty, double cost, double got, String market) {
+	record Flip(long ts, String item, double qty, double cost, double got, String market, long buyTs) {
 		double profit() {
 			return got - cost;
 		}
 	}
 
 	record Summary(double profit, int flips, Flip best, int unmatchedSales, List<Flip> recent) {}
+
+	/** Something you bought and still hold (not yet matched to a sale). */
+	record Lot(long ts, String item, String market, double qty, double unitCost) {}
 
 	private static final Pattern AH_BUY = Pattern.compile("^You purchased (.+?) for ([0-9][0-9,]*) coins!");
 	private static final Pattern AH_SOLD = Pattern.compile("^\\[Auction\\] (.+?) bought (.+?) for ([0-9][0-9,]*) coins");
@@ -119,7 +122,7 @@ final class ProfitLog {
 		if (m.find()) {
 			String[] q = qty(m.group(2));
 			double gross = n(m.group(3));
-			double net = gross - gross * Verdict.listingFee(gross) - (gross > 1e6 ? gross * 0.01 : 0);
+			double net = gross - gross * Verdict.listingFee(gross) - gross * Mayor.claimTax(gross);
 			return new Trade(now, "SELL", "AH", q[1], Double.parseDouble(q[0]), net);
 		}
 		m = BZ_INSTANT.matcher(plain);
@@ -143,6 +146,7 @@ final class ProfitLog {
 		Trade t = parse(plain, System.currentTimeMillis());
 		if (t == null) return;
 		add(t);
+		if ("BUY".equals(t.side())) Holdings.onBuy(t);             // link it to the suggestion you acted on
 		if ("SELL".equals(t.side())) {
 			Summary today = summary(startOfDay(0));
 			Flip last = today.recent().isEmpty() ? null : today.recent().get(0);
@@ -166,7 +170,7 @@ final class ProfitLog {
 	}
 
 	static Summary summarize(List<Trade> all, long from) {
-		Map<String, Deque<double[]>> lots = new HashMap<>();       // item → [qty, unit cost]
+		Map<String, Deque<double[]>> lots = new HashMap<>();       // item → [qty, unit cost, buy time]
 		List<Flip> flips = new ArrayList<>();
 		int unmatched = 0;
 		List<Trade> sorted = new ArrayList<>(all);
@@ -174,13 +178,15 @@ final class ProfitLog {
 		for (Trade t : sorted) {
 			String k = t.item().toLowerCase(Locale.ROOT);
 			if ("BUY".equals(t.side())) {
-				if (t.qty() > 0) lots.computeIfAbsent(k, x -> new ArrayDeque<>()).add(new double[]{t.qty(), t.coins() / t.qty()});
+				if (t.qty() > 0) lots.computeIfAbsent(k, x -> new ArrayDeque<>()).add(new double[]{t.qty(), t.coins() / t.qty(), t.ts()});
 				continue;
 			}
 			Deque<double[]> q = lots.get(k);
 			double need = t.qty(), cost = 0, matched = 0;
+			long buyTs = 0;
 			while (q != null && need > 1e-9 && !q.isEmpty()) {
 				double[] lot = q.peekFirst();
+				if (buyTs == 0) buyTs = (long) lot[2];
 				double take = Math.min(need, lot[0]);
 				cost += take * lot[1];
 				matched += take;
@@ -194,7 +200,7 @@ final class ProfitLog {
 				continue;
 			}
 			double got = t.coins() * matched / t.qty();
-			flips.add(new Flip(t.ts(), t.item(), matched, cost, got, t.market()));
+			flips.add(new Flip(t.ts(), t.item(), matched, cost, got, t.market(), buyTs));
 		}
 		double profit = 0;
 		Flip best = null;
@@ -205,6 +211,35 @@ final class ProfitLog {
 		List<Flip> recent = new ArrayList<>(flips);
 		recent.sort((a, b) -> Long.compare(b.ts(), a.ts()));
 		return new Summary(profit, flips.size(), best, unmatched, recent);
+	}
+
+	/** Everything bought in the last 30 days that isn't sold yet (first in, first out), newest first. */
+	static synchronized List<Lot> openLots() {
+		load();
+		Map<String, Deque<Object[]>> lots = new HashMap<>();       // item → [qty, unit, ts, name, market]
+		List<Trade> sorted = new ArrayList<>(trades);
+		sorted.sort((a, b) -> Long.compare(a.ts(), b.ts()));
+		for (Trade t : sorted) {
+			String k = t.item().toLowerCase(Locale.ROOT);
+			if ("BUY".equals(t.side())) {
+				if (t.qty() > 0) lots.computeIfAbsent(k, x -> new ArrayDeque<>()).add(new Object[]{t.qty(), t.coins() / t.qty(), t.ts(), t.item(), t.market()});
+				continue;
+			}
+			Deque<Object[]> q = lots.get(k);
+			double need = t.qty();
+			while (q != null && need > 1e-9 && !q.isEmpty()) {
+				Object[] lot = q.peekFirst();
+				double take = Math.min(need, (double) lot[0]);
+				lot[0] = (double) lot[0] - take;
+				need -= take;
+				if ((double) lot[0] <= 1e-9) q.pollFirst();
+			}
+		}
+		List<Lot> out = new ArrayList<>();
+		for (Deque<Object[]> q : lots.values())
+			for (Object[] l : q) out.add(new Lot((long) l[2], (String) l[3], (String) l[4], (double) l[0], (double) l[1]));
+		out.sort((a, b) -> Long.compare(b.ts(), a.ts()));
+		return out;
 	}
 
 	/** Realized profit + flip count for one market ("AH" / "BZ") since `from`. */

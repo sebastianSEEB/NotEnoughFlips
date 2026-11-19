@@ -52,10 +52,27 @@ Bazaar price forecasts for 1, 6 and 24 hours ahead. Each product gets the foreca
 
 - Home: your cash, coins on the AH, coins to collect and today's profit, a to-do list (items to collect, outbid bids, listings priced too high) and what ends next.
 - My Auctions, Bids and Listings: your auctions and bids, with what each item is worth.
+- Bought: everything you bought and still hold, with what you paid, the goal price and progress toward it.
 - Coins: what your coins add up to once everything settles, where they are right now, how they changed over the last week, what your open auctions are worth, and your profit today, this week and this month.
 - Bazaar: prices with 7-day charts, the bazaar signals, and how many coins are traded per day on the bazaar and the AH.
 
 Click a row to open that auction.
+
+## Safety checks
+
+The mod warns you, with a red box and a short reason on the button, before the common traps cost you coins:
+
+- **Fake or lookalike items:** the item's name says one thing but its SkyBlock id is another.
+- **Overpriced BINs:** the price is 30% or more above what that exact copy is worth.
+- **Manipulated or brand-new items:** pumped sales are left out of the price, and items with under 3 days of sales are marked as not settled.
+- **Bazaar traps:** Sell Instantly pays 30% or more under the product's 7-day normal (a flash-crash buy order), or Buy Instantly costs 40% or more over it (a pump).
+- **Flip lists stay clean:** bazaar products that are pumped, crashing or far above their peers are left out, and DEALS only lists BINs whose resale is backed by real sales.
+- **Fees:** the AH listing fee and claim tax, with Derpy's higher claim tax applied automatically while he is mayor. The bazaar tax is 1.25% by default; set yours with `/nef bztax 1.125` after the Bazaar Flipper upgrade.
+- **New BINs:** Hypixel holds a new BIN for 20 seconds before anyone can buy it, so snipe alerts count down until the Buy button works.
+
+## Track what you bought
+
+When you act on a suggestion (an AH flip, a snipe, a DEALS item, a bazaar flip or a bazaar mispricing), the mod remembers why you bought it and the price it should reach. Trade Desk → Bought lists everything you still hold: what you paid, what it would sell for now, the goal, how far it has come, and the profit if you sold now. When you sell, the profit is booked under that reason (for example "Mispricing +4.2M (3)").
 
 ## Getting started
 
@@ -75,6 +92,7 @@ A free Hypixel API key (developer.hypixel.net) turns on the bidder check and add
 | `/nef signals` | Bazaar misprices and correlations |
 | `/nef forecast on\|off` | Use forecasts in the flip lists |
 | `/nef desk` | Open the Trade Desk |
+| `/nef bztax <percent>` | Your bazaar tax (1.25 by default, lower with the Bazaar Flipper upgrade) |
 | `/nef orders` | Bazaar orders HUD on or off (also key O): `size small\|medium\|large`, `max <1-20>` |
 | `/nef mode simple\|pro` | Short or detailed tooltips |
 | `/nef apikey <key\|clear>` | Your Hypixel API key, for the bidder check |

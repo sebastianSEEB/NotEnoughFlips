@@ -115,7 +115,7 @@ final class Verdict {
 	}
 
 	static double netAfterFees(double sell) {
-		return sell * (1 - listingFee(sell) - (sell > 1e6 ? 0.01 : 0));
+		return sell * (1 - listingFee(sell) - Mayor.claimTax(sell));       // claim tax 1 % over 1M (4 % under Derpy)
 	}
 
 	/** Fallback fair value for an auction item: median of recent hourly medians. */

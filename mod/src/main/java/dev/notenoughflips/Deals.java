@@ -51,10 +51,21 @@ final class Deals {
 		long now = System.currentTimeMillis();
 		for (FlipFeed.Candidate c : FlipFeed.candidates()) {
 			if (c.ref() <= 0 || Sniper.blocked(c.key(), cfg)) continue;
-			double discount = 1 - c.price() / c.ref();
-			if (discount * 100 < cfg.dealMinDiscountPercent || c.ref() < cfg.dealMinValue) continue;
+			// the next listings can be wishful: never count on more than copies of this item really sell for
+			java.util.List<double[]> week = NefClient.cofl == null ? null : NefClient.cofl.weekClean(c.key(), false);
+			if (week == null) continue;                               // no sales history loaded yet: can't check it
+			com.google.gson.JsonObject doc = NefClient.docFor(c.key(), false);
+			if (doc != null && Market.hasSevereFlag(doc)) continue;   // manipulated
+			double sold = 0, from = now - 86_400_000L;
+			for (double[] q : week) if (q[0] >= from) sold += q[4];
+			if (sold < Math.max(1, cfg.snipeMinSalesPerDay)) continue;  // barely sells: you'd be stuck holding it
+			double ceiling = Valuation.ceiling(week);
+			double fair = ceiling > 0 ? Math.min(c.ref(), ceiling) : c.ref();
+			double profit = Verdict.netAfterFees(Market.undercut(fair)) - c.price();
+			double discount = 1 - c.price() / fair;
+			if (profit <= 0 || discount * 100 < cfg.dealMinDiscountPercent || fair < cfg.dealMinValue) continue;
 			long first = firstSeen.computeIfAbsent(c.uuid(), u -> now);
-			out.add(new Deal(c.uuid(), c.key(), c.price(), 1, c.ref(), discount, FlipFeed.rawProfit(c), first));
+			out.add(new Deal(c.uuid(), c.key(), c.price(), 1, fair, discount, profit, first));
 		}
 		out.sort((a, b) -> Double.compare(b.profit(), a.profit()));
 		if (firstSeen.size() > 5000) firstSeen.clear();

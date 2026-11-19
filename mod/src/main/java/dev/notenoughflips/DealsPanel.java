@@ -111,8 +111,11 @@ final class DealsPanel {
 			p.text(FcfPanel.fit(name, w - w(right) - 18), x + 8, y + 1, 0xFFFFFFFF);
 			p.text(right, x + w - 8 - w(right), y + 1, 0xFF55FF55);
 			p.text(FcfPanel.fit(detail, w - 16), x + 8, y + 10, 0xFFE0E0E0);
-			final String uuid = d.uuid();
-			hits.add(new Hit(x + 4, y - 2, x + w - 4, y + ROW - 3, () -> Cmd.viewAuction(uuid)));
+			final String uuid = d.uuid(), dname = name.replaceFirst("^#[0-9]+ ", "");
+			hits.add(new Hit(x + 4, y - 2, x + w - 4, y + ROW - 3, () -> {
+				Holdings.intend(dname, d.key(), "Deal", Market.undercut(d.fair()));
+				Cmd.viewAuction(uuid);
+			}));
 			y += ROW;
 		}
 		int fy = Math.min(maxY, y0 + h) - 20;

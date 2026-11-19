@@ -235,9 +235,22 @@ final class Sniper {
 	 * checked first (a few ms); if not, the alert goes out as "checking…" (auction opens at once) while the history
 	 * loads, then turns into ✓ or ✗ (don't buy) within seconds.
 	 */
+	/** auction uuid → when it was listed (Hypixel lets nobody buy a new BIN for its first 20 s). */
+	private static final Map<String, Long> listedAt = new java.util.concurrent.ConcurrentHashMap<>();
+
+	/** Seconds until a new BIN can be bought (0 = now). */
+	static long graceLeft(String uuid) {
+		Long t = listedAt.get(uuid);
+		return t == null ? 0 : Math.max(0, (t + 20_000L - System.currentTimeMillis() + 999) / 1000);
+	}
+
 	private static void handle(JsonObject a) {
 		Pre pre = pre(a, cfg);
 		if (pre == null) return;
+		if (a.has("start")) {
+			listedAt.put(pre.uuid(), a.get("start").getAsLong());
+			if (listedAt.size() > 500) listedAt.clear();
+		}
 		Object v = evaluate(pre, cfg);
 		if (v instanceof Alert al) fire(al);
 		else if (v == PENDING) {
@@ -447,6 +460,7 @@ final class Sniper {
 		autoOpened.add(a.uuid());
 		if (autoOpened.size() > 500) autoOpened.clear();
 		pendingOpen = null;
+		Holdings.intend(a.name(), a.key(), "Snipe", a.resale() / Math.max(1, a.count()));
 		Cmd.viewAuction(a.uuid());                                     // the BIN view pops up; buying stays your click
 	}
 
@@ -463,7 +477,10 @@ final class Sniper {
 
 	static void openLatest() {
 		Alert a = latest();
-		if (a != null) Cmd.viewAuction(a.uuid());
+		if (a != null) {
+			Holdings.intend(a.name(), a.key(), "Snipe", a.resale() / Math.max(1, a.count()));
+			Cmd.viewAuction(a.uuid());
+		}
 	}
 
 	// ------------------------------------------------------------------ banner
@@ -478,7 +495,9 @@ final class Sniper {
 				: String.format(Locale.ROOT, "%s → resell ≈ %s   +%s (%.0f%%) after fees · %s", HudFormatter.fmt(a.price()),
 						HudFormatter.fmt(a.resale()), HudFormatter.fmt(a.profit()), a.pct() * 100,
 						ok ? "✓ checked, not manipulated" : "checking history…");
-		String l3 = BidHelper.currentScreen() == null ? "Type /nef snipe to open it (or open any menu and click this)"
+		long grace = graceLeft(a.uuid());
+		String l3 = grace > 0 ? "Buyable in " + grace + "s (Hypixel holds new BINs for 20 s): get the Buy button ready"
+				: BidHelper.currentScreen() == null ? "Type /nef snipe to open it (or open any menu and click this)"
 				: cfg.snipeAutoOpen && System.currentTimeMillis() - autoOpenedAt < SHOW_MS ? "Opened: press Buy Item Right Now, then Confirm"
 				: "Click here to open it";
 		int w = Math.max(mc.font.width(l1), Math.max(mc.font.width(l2), mc.font.width(l3))) + 16;
@@ -506,6 +525,7 @@ final class Sniper {
 	 */
 	static void paintButtons(Highlight.Painter p, net.minecraft.client.gui.screens.Screen s) {
 		if (!(s instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> acs)) return;
+		if (Guard.paint(p, s)) return;                                 // a trap warning replaces the green highlight
 		String t = s.getTitle().getString().toLowerCase(Locale.ROOT);
 		boolean view = t.contains("auction view"), confirm = t.contains("confirm");
 		if (!view && !confirm) return;

@@ -190,6 +190,44 @@ final class DataClient {
 	}
 
 	/** Completes with the parsed object, null on 404, exceptionally on network errors. */
+	/** GET a public JSON resource (Hypixel resources, data site). */
+	CompletableFuture<JsonObject> getJsonPublic(String url, int timeoutSeconds) {
+		return getJson(url, timeoutSeconds).handle((j, e) -> e != null ? null : j);
+	}
+
+	private final Map<String, double[]> bzWeek = new java.util.concurrent.ConcurrentHashMap<>();
+	private final Map<String, Long> bzWeekAt = new java.util.concurrent.ConcurrentHashMap<>();
+
+	/**
+	 * A bazaar product's normal level over the last 7 days, from the data site's hourly history: {median instant-buy,
+	 * median instant-sell, hours}. Null until loaded (fetched on first use, then every 30 min).
+	 */
+	double[] bazaarNormal(String id) {
+		if (id == null || !id.matches("[A-Z0-9_:]+") || cfg.dataUrl == null || cfg.dataUrl.isBlank()) return null;
+		long now = System.currentTimeMillis();
+		Long at = bzWeekAt.get(id);
+		if (at == null || now - at > 1_800_000L) {
+			bzWeekAt.put(id, now);
+			getJson(cfg.dataUrl + "/bz/" + id + ".json", 10).whenComplete((j, e) -> {
+				if (j == null || !j.has("points") || !j.get("points").isJsonArray()) return;
+				java.util.List<Double> b = new java.util.ArrayList<>(), s = new java.util.ArrayList<>();
+				for (JsonElement el : j.getAsJsonArray("points")) {
+					var a = el.getAsJsonArray();
+					if (a.size() < 3) continue;
+					if (a.get(1).getAsDouble() > 0) b.add(a.get(1).getAsDouble());
+					if (a.get(2).getAsDouble() > 0) s.add(a.get(2).getAsDouble());
+				}
+				if (b.size() >= 12 && s.size() >= 12) bzWeek.put(id, new double[]{Market.median(b), Market.median(s), Math.min(b.size(), s.size())});
+			});
+		}
+		return bzWeek.get(id);
+	}
+
+	/** bazaarNormal() without fetching (null when not loaded yet). */
+	double[] bazaarNormalCached(String id) {
+		return id == null ? null : bzWeek.get(id);
+	}
+
 	private CompletableFuture<JsonObject> getJson(String url, int timeoutSeconds) {
 		HttpRequest req = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(timeoutSeconds))
 				.header("User-Agent", "NotEnoughFlips/1.0").GET().build();

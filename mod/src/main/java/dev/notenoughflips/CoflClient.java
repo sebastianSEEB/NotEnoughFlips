@@ -342,6 +342,13 @@ final class CoflClient {
 		}
 		if (lowest != null && d7 != null && lowest > d7.get("med").getAsDouble() * 1.6)
 			flags.add(flag("lbin_high", 2, "cheapest BIN is far above recent sales: listings look inflated"));
+		if (!raw.isEmpty()) {
+			double first = raw.get(0)[0];
+			for (double[] q : raw) first = Math.min(first, q[0]);
+			if (now - first < 3 * 86_400_000L && raw.size() >= 2)
+				flags.add(flag("new", 1, String.format(java.util.Locale.ROOT,
+						"new on the AH: only %.1f days of sales, prices haven't settled", (now - first) / 86_400_000.0)));
+		}
 		if (dropped > 0) {
 			// manipulated periods were left out of every price above: the warnings stay, but they no longer block the
 			// verdict (it is now judged on the normal sales only)
