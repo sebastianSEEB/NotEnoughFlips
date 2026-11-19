@@ -132,7 +132,7 @@ final class DataClient {
 						componentsLoading = false;
 					});
 		}
-		return components;
+		return components != null ? components : LocalComponents.get(this);      // built on your PC
 	}
 
 	/** Wallet + potential FCF report from an optional local server (/wallet); never from a website. */
@@ -333,7 +333,9 @@ final class DataClient {
 	/** One series' forecast ("buy"/"sell" for bazaar, "main" for AH), or null. */
 	Forecasts.Side forecast(String key, String side) {
 		Map<String, Forecasts.Side> m = key == null ? null : forecasts().get(key);
-		return m == null ? null : m.get(side);
+		Forecasts.Side f = m == null ? null : m.get(side);
+		if (f == null && "main".equals(side)) f = LocalForecast.forItem(key);   // AH items: made on your PC
+		return f;
 	}
 
 	/** When the loaded forecasts were made (0 = none). */

@@ -26,7 +26,8 @@ import net.minecraft.world.item.component.ItemLore;
  *
  * Upgrades: enchantments (as books), recombobulator (+1 rarity), hot/fuming potato books, stars (real essence
  * cost) and master stars, gemstones, art of war, pet held item and skin. Prices: live bazaar first, then the
- * optional local server's /components (bazaar + lowest BIN). The model (clean base / pet L1–L100) is in the item doc.
+ * optional local server's /components, else LocalComponents (live bazaar + lowest BINs from your own AH scan + Hypixel's
+ * star costs). The model (clean base) comes from the item doc, else from your own AH scan (MarketBook).
  */
 final class Valuation {
 	static final String[] TIERS = {"COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY", "MYTHIC", "DIVINE", "SPECIAL", "VERY SPECIAL"};
@@ -226,8 +227,9 @@ final class Valuation {
 
 	/** Estimate for this copy, or null when there is no fitted model or no component prices yet. */
 	static Estimate estimate(JsonObject doc, String key, Attrs a) {
-		if (doc == null || a == null || data == null) return null;
+		if (a == null || data == null) return null;
 		JsonObject model = HudFormatter.obj(doc, "market", "model");
+		if (model == null && !a.pet) model = MarketBook.model(key);       // plain-copy price from your own AH scan
 		JsonObject comp = data.components();
 		if (model == null || comp == null) return null;
 		List<Part> comps = components(a, comp);

@@ -181,7 +181,7 @@ final class AhMarket {
 	}
 
 	private static Path file() {
-		return FabricLoader.getInstance().getConfigDir().resolve("notenoughflips-ah-market.json");
+		return Accounts.shared("ah-market.json");
 	}
 
 	/** Bazaar coins per day per product: (instant buys × buy price + instant sells × sell price) ÷ 7. Pure. */

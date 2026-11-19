@@ -17,7 +17,7 @@ A Hypixel SkyBlock trading helper for Fabric. Not Enough Flips shows prices, ver
   - It skips manipulated or erratic markets, a blacklist of usually-cheap items (skins, dyes, runes, cakes…), low-value items and slow sellers.
   - Optionally opens `/viewauction` for you. You still press Buy and Confirm.
   - The Buy button is highlighted when the deal is profitable.
-- **Bid helper:** in an auction view, a panel shows how many coins the other bidders hold (purse + bank), so you don't overbid against someone who can't follow. This needs your own Hypixel API key: `/nef apikey <key>`. The key is stored only in your local config.
+- **Bid helper:** in an auction view, a panel shows how many coins the other bidders hold (purse + bank), so you don't overbid against someone who can't follow. This needs your own Hypixel API key: `/nef apikey <key>`, which also adds your bank balance to the Trade Desk. The key is stored only in your local config.
 - **Bazaar signals:** misprices measured against each product's correlated peers, pair spreads, compression-recipe ratios and market-wide events, with plain-language suggestions.
 - **Forecasts:** 1 h, 6 h and 24 h bazaar forecasts. The method is chosen per series (smoothing, Holt, regression, hour-of-day index), and a model is dropped when its tracking signal fails. Turn them on or off with `/nef forecast on|off`.
 - **Trade Desk** (`/nef desk`): a simple ERP for your trading, with six sections:

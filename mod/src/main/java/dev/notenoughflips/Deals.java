@@ -40,6 +40,27 @@ final class Deals {
 		ex.scheduleWithFixedDelay(Deals::poll, 20, Math.max(30, cfg.dealPollSeconds), TimeUnit.SECONDS);
 	}
 
+	private static final java.util.Map<String, Long> firstSeen = new java.util.concurrent.ConcurrentHashMap<>();
+
+	/**
+	 * Underpriced BINs from the mod's own AH scan: the cheapest copy of an item is at least dealMinDiscountPercent under
+	 * the next identical copies (same stars, recomb, enchants…), worth at least dealMinValue, and not blocked for snipes.
+	 */
+	static List<Deal> fromScan() {
+		List<Deal> out = new ArrayList<>();
+		long now = System.currentTimeMillis();
+		for (FlipFeed.Candidate c : FlipFeed.candidates()) {
+			if (c.ref() <= 0 || Sniper.blocked(c.key(), cfg)) continue;
+			double discount = 1 - c.price() / c.ref();
+			if (discount * 100 < cfg.dealMinDiscountPercent || c.ref() < cfg.dealMinValue) continue;
+			long first = firstSeen.computeIfAbsent(c.uuid(), u -> now);
+			out.add(new Deal(c.uuid(), c.key(), c.price(), 1, c.ref(), discount, FlipFeed.rawProfit(c), first));
+		}
+		out.sort((a, b) -> Double.compare(b.profit(), a.profit()));
+		if (firstSeen.size() > 5000) firstSeen.clear();
+		return out;
+	}
+
 	static List<Deal> list() {
 		return current;
 	}
@@ -47,14 +68,17 @@ final class Deals {
 	private static void poll() {
 		try {
 			JsonArray arr = data.localDeals().get(10, TimeUnit.SECONDS);
-			if (arr == null) return;                                   // local server not running
 			List<Deal> out = new ArrayList<>();
-			for (JsonElement e : arr) {
-				JsonObject o = e.getAsJsonObject();
-				Deal d = new Deal(o.get("uuid").getAsString(), o.get("item_key").getAsString(), o.get("price").getAsDouble(),
-						o.get("count").getAsInt(), o.get("fair").getAsDouble(), o.get("discount").getAsDouble(),
-						o.get("profit").getAsDouble(), o.get("first_seen").getAsLong());
-				if (d.discount() * 100 >= cfg.dealMinDiscountPercent && d.fair() * d.count() >= cfg.dealMinValue) out.add(d);
+			if (arr != null) {                                          // optional local server
+				for (JsonElement e : arr) {
+					JsonObject o = e.getAsJsonObject();
+					Deal d = new Deal(o.get("uuid").getAsString(), o.get("item_key").getAsString(), o.get("price").getAsDouble(),
+							o.get("count").getAsInt(), o.get("fair").getAsDouble(), o.get("discount").getAsDouble(),
+							o.get("profit").getAsDouble(), o.get("first_seen").getAsLong());
+					if (d.discount() * 100 >= cfg.dealMinDiscountPercent && d.fair() * d.count() >= cfg.dealMinValue) out.add(d);
+				}
+			} else {
+				out = fromScan();                                       // your own AH scan (every scan, no server needed)
 			}
 			current = out;
 			if (!cfg.dealAlerts) return;

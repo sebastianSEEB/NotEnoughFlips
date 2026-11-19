@@ -25,8 +25,9 @@ import net.minecraft.world.inventory.ChestMenu;
 final class FcfPanel {
 	private static final int DESK_W = 34;
 	private static final int W = 168, BTN_W = 36, BTN_H = 14, ROW = 9, STEP = 12, POS_ROW = 19, MAX_POS = 8;
-	private static final int BG = 0xE0101418, EDGE = 0xFF3987E5, MUTED = 0xFF8A8A8A, TEXT = 0xFFFFFFFF,
-			POS = 0xFF3987E5, NEG = 0xFFE5534B, TOTAL = 0xFFB8B8B0, GOOD = 0xFF55FF55, GOLD = 0xFFFFAA00;
+	// inventory look (McStyle): grey container, dark text, stone buttons
+	private static final int MUTED = McStyle.MUTED, TEXT = McStyle.TEXT,
+			POS = 0xFF3D7BD6, NEG = 0xFFD0453E, TOTAL = 0xFF8B8B8B, GOOD = McStyle.GOOD, GOLD = McStyle.GOLD;
 
 	private static NefConfig cfg;
 	private static DataClient data;
@@ -41,7 +42,7 @@ final class FcfPanel {
 	private static int tab;                     // 0 flow (waterfall), 1 tied up (pie), 2 trend (line)
 	private static boolean week = true;         // trend range: 7 days / 24 hours
 	private static final String[] TABS = {"Flow", "Tied up", "Trend", "Bazaar"};
-	static final int[] SLICE = {0xFF3987E5, 0xFF1BAF7A, 0xFFEDA100, 0xFFB07CF0, 0xFF8A8A8A};
+	static final int[] SLICE = {0xFF3987E5, 0xFF1BAF7A, 0xFFB07A00, 0xFFB07CF0, 0xFF8A8A8A};
 
 	private FcfPanel() {}
 
@@ -109,26 +110,17 @@ final class FcfPanel {
 	static void paint(Screen s, Highlight.Painter p) {
 		if (!active(s)) return;
 		int bx = left(s), by = Math.max(1, top(s) - BTN_H - 2);
-		p.fill(bx, by, bx + BTN_W, by + BTN_H, open ? 0xFF3987E5 : 0xF0202830);
-		p.fill(bx, by, bx + BTN_W, by + 1, 0xFFFFAA00);
-		p.fill(bx, by + BTN_H - 1, bx + BTN_W, by + BTN_H, 0xFFFFAA00);
-		p.fill(bx, by, bx + 1, by + BTN_H, 0xFFFFAA00);
-		p.fill(bx + BTN_W - 1, by, bx + BTN_W, by + BTN_H, 0xFFFFAA00);
-		p.text("FCF ▸", bx + 5, by + 3, open ? TEXT : GOLD);
+		McStyle.button(p, bx, by, bx + BTN_W, by + BTN_H, "FCF", open);
 		if (cfg.deskButton && s instanceof InventoryScreen) {
 			int ex = left(s) - DESK_W - 3;
-			p.fill(ex, by, ex + DESK_W, by + BTN_H, 0xF0202830);
-			p.fill(ex, by, ex + 2, by + BTN_H, 0xFFFFAA00);
-			p.text("DESK", ex + 2 + (DESK_W - 2 - Minecraft.getInstance().font.width("DESK")) / 2, by + 3, 0xFFFFAA00);
+			McStyle.button(p, ex, by, ex + DESK_W, by + BTN_H, "DESK", Desk.isOn());
 		}
 		if (!open) return;
 		refresh(false);
 		int tx = bx + BTN_W + 3;
 		for (int i = 0; i < TABS.length; i++) {
 			int tw = Minecraft.getInstance().font.width(TABS[i]) + 10;
-			p.fill(tx, by, tx + tw, by + BTN_H, i == tab ? 0xFF3987E5 : 0xE0202830);
-			p.fill(tx, by + BTN_H - 1, tx + tw, by + BTN_H, i == tab ? 0xFFFFFFFF : 0xFF3987E5);
-			p.text(TABS[i], tx + 5, by + 3, i == tab ? TEXT : 0xFFCCCCCC);
+			McStyle.button(p, tx, by, tx + tw, by + BTN_H, TABS[i], i == tab);
 			tx += tw + 2;
 		}
 
@@ -149,8 +141,7 @@ final class FcfPanel {
 		String walletNote = purse != null ? (bank == null ? "purse (live)" : "purse (live) + bank") : repWallet != null ? "purse + bank" : "unknown";
 
 		if (n == null) {
-			p.fill(x, y, x + w, y + 64, BG);
-			p.fill(x, y, x + w, y + 1, EDGE);
+			McStyle.panel(p, x, y, x + w, y + 64);
 			p.text("Potential FCF", x + 5, y + 4, GOLD);
 			p.text("Wallet " + HudFormatter.fmt(wallet), x + 5, y + 18, TEXT);
 			p.text(AhScanner.running() ? fit(AhScanner.status(), w - 10) : rep == null ? "Loading…" : "No positions yet.", x + 5, y + 32, MUTED);
@@ -205,7 +196,7 @@ final class FcfPanel {
 			else if (st.kind() == 3) { a = run + st.v(); b = run; }
 			else { a = run; b = run + st.v(); run += st.v(); }
 			int x1 = barX + (int) Math.round(Math.min(a, b) / max * barW), x2 = barX + (int) Math.round(Math.max(a, b) / max * barW);
-			int color = st.kind() == 0 ? TOTAL : st.kind() == 1 ? POS : st.kind() == 2 ? NEG : 0x80E5534B;
+			int color = st.kind() == 0 ? TOTAL : st.kind() == 1 ? POS : st.kind() == 2 ? NEG : 0x80D0453E;
 			bars.add(new int[]{Math.max(barX, x1), by2, Math.max(x1 + 1, Math.min(barX + barW, x2)), by2 + 2, color});
 			by2 += STEP;
 		}
@@ -238,16 +229,14 @@ final class FcfPanel {
 		panelY = y;
 
 		// background
-		p.fill(x, y, x + w, y + h[0], BG);
-		p.fill(x, y, x + w, y + 1, EDGE);
-		p.fill(x, y + h[0] - 1, x + w, y + h[0], EDGE);
+		McStyle.panel(p, x, y, x + w, y + h[0]);
 		p.text("Potential FCF", x + 5, y + 4, GOLD);
 		String tw = HudFormatter.fmt(fcf);
 		p.text(tw, x + w - 5 - font.width(tw), y + 4, GOOD);
 		draw.forEach(Runnable::run);
 		for (int[] b : bars) p.fill(b[0], b[1], b[2], b[3], b[4]);
 		int lastBarY = bars.get(bars.size() - 1)[1];
-		p.fill(consX, lastBarY - 2, consX + 1, lastBarY + 4, 0xFFFFFFFF);       // conservative marker
+		p.fill(consX, lastBarY - 2, consX + 1, lastBarY + 4, McStyle.TEXT);       // conservative marker
 
 		int cy = ly;
 		p.text(fit("conservative " + HudFormatter.fmt(cons) + "  (┃ marker)", barW), barX, cy, MUTED);
@@ -256,7 +245,7 @@ final class FcfPanel {
 		cy += 12;
 
 		// positions
-		p.fill(x + 4, cy, x + w - 4, cy + 1, 0xFF333333);
+		p.fill(x + 4, cy, x + w - 4, cy + 1, McStyle.LINE);
 		p.text(fit("Positions" + (totalPos > pos.size() ? " " + pos.size() + "/" + totalPos : "") + " (click = open)", barW), barX, cy + 3, GOLD);
 		cy += 13;
 		rowUuids.clear();
@@ -275,7 +264,7 @@ final class FcfPanel {
 			int rc;
 			if ("sale".equals(role)) {
 				right = "→ " + HudFormatter.fmt(d(o, "net"));
-				rc = 0xFF7FB4F0;
+				rc = McStyle.BLUE;
 			} else if ("winning".equals(status)) {
 				Double pr = HudFormatter.num(o, "profit");
 				right = pr == null ? "winning" : (pr >= 0 ? "+" : "−") + HudFormatter.fmt(Math.abs(pr));
@@ -289,14 +278,14 @@ final class FcfPanel {
 			boolean over = o.has("overpriced") && o.get("overpriced").getAsBoolean();
 			String sub = ("sale".equals(role) ? "selling " : "bid ") + HudFormatter.fmt(amount) + " · " + status
 					+ (over ? " · above value" : "");
-			p.text(fit(sub, barW), barX, cy + 10, over ? 0xFFFFAA55 : MUTED);
+			p.text(fit(sub, barW), barX, cy + 10, over ? McStyle.GOLD : MUTED);
 			rowUuids.add(str(o, "uuid"));
 			cy += POS_ROW;
 		}
 		long mins = report() == null ? -1 : (System.currentTimeMillis() - d(f, "updated") > 0 ? (long) ((System.currentTimeMillis() - d(f, "updated")) / 60000) : 0);
 		p.text(fit(AhScanner.running() ? AhScanner.status() : (mins < 0 ? "" : "scan " + (mins < 1 ? "now" : mins + "m ago") + " · ") + source(), barW - 12), barX,
 				y + h[0] - 11, MUTED);
-		p.text("⟳", barX + barW - 6, y + h[0] - 11, 0xFF55FFFF);
+		p.text("⟳", barX + barW - 6, y + h[0] - 11, McStyle.BLUE);
 		lastHeight = h[0];
 	}
 
@@ -305,8 +294,8 @@ final class FcfPanel {
 	private static void stepText(Highlight.Painter p, String label, double v, int kind, int x, int w, int y) {
 		var font = Minecraft.getInstance().font;
 		String val = kind == 0 ? HudFormatter.fmt(v) : (v >= 0 ? "+" : "−") + HudFormatter.fmt(Math.abs(v));
-		p.text(label, x, y, kind == 0 ? TEXT : 0xFFCCCCCC);
-		p.text(val, x + w - font.width(val), y, kind == 0 ? TEXT : v >= 0 ? 0xFF7FB4F0 : 0xFFFF8A80);
+		p.text(label, x, y, kind == 0 ? TEXT : McStyle.TEXT);
+		p.text(val, x + w - font.width(val), y, kind == 0 ? TEXT : v >= 0 ? McStyle.BLUE : McStyle.BAD);
 	}
 
 	/** Cut text to fit the width, with an ellipsis. */
@@ -367,9 +356,7 @@ final class FcfPanel {
 
 	// ------------------------------------------------------------------ tied up (pie)
 	private static void frame(Highlight.Painter p, int x, int y, int w, int h) {
-		p.fill(x, y, x + w, y + h, BG);
-		p.fill(x, y, x + w, y + 1, EDGE);
-		p.fill(x, y + h - 1, x + w, y + h, EDGE);
+		McStyle.panel(p, x, y, x + w, y + h);
 	}
 
 	private static void paintTied(Screen s, Highlight.Painter p, int x, int y, int w, JsonObject f, JsonObject n,
@@ -398,12 +385,12 @@ final class FcfPanel {
 		int ly = cy + r + 6;
 		for (int i = 0; i < labels.length; i++) {
 			p.fill(x + 6, ly + 1, x + 12, ly + 7, SLICE[i]);
-			p.text(fit(labels[i], w - 70), x + 16, ly, 0xFFDDDDDD);
+			p.text(fit(labels[i], w - 70), x + 16, ly, McStyle.TEXT);
 			String val = HudFormatter.fmt(v[i]) + String.format(Locale.ROOT, " %3.0f%%", total > 0 ? 100 * Math.max(0, v[i]) / total : 0);
 			p.text(val, x + w - 5 - font.width(val), ly, v[i] > 0 ? TEXT : MUTED);
 			ly += 11;
 		}
-		p.fill(x + 4, ly + 1, x + w - 4, ly + 2, 0xFF333333);
+		p.fill(x + 4, ly + 1, x + w - 4, ly + 2, McStyle.LINE);
 		p.text("Biggest positions (click = open)", x + 5, ly + 4, GOLD);
 		ly += 14;
 		rowUuids.clear();
@@ -417,7 +404,7 @@ final class FcfPanel {
 			String val = HudFormatter.fmt(tied(o));
 			int color = "sale".equals(str(o, "role")) ? SLICE[2] : "winning".equals(str(o, "status")) ? SLICE[3] : SLICE[4];
 			p.fill(x + 6, ly + 2, x + 9, ly + 6, color);
-			p.text(fit(item, w - 24 - font.width(val)), x + 12, ly, 0xFFDDDDDD);
+			p.text(fit(item, w - 24 - font.width(val)), x + 12, ly, McStyle.TEXT);
 			p.text(val, x + w - 5 - font.width(val), ly, TEXT);
 			rowUuids.add(str(o, "uuid"));
 			ly += 10;
@@ -441,7 +428,7 @@ final class FcfPanel {
 			DataClient.Live live = data.live(k);
 			DataClient.Doc doc = data.doc(k);
 			Double avg = doc == null || doc.json() == null ? null : HudFormatter.num(HudFormatter.obj(doc.json(), "stats", "24h", "sell"), "avg");
-			p.text(fit(Desk.pretty(k), w - 10), x + 5, ly, 0xFFDDDDDD);
+			p.text(fit(Desk.pretty(k), w - 10), x + 5, ly, McStyle.TEXT);
 			String v = live == null ? "…" : HudFormatter.fmt(live.sell()) + " · " + HudFormatter.fmt(live.buy());
 			p.text(v, x + w - 5 - font.width(v), ly + 9, TEXT);
 			if (live != null && avg != null && avg > 0) {
@@ -541,7 +528,7 @@ final class FcfPanel {
 		for (int k = 0; k <= 2; k++) {
 			long v = lo + (hi - lo) * k / 2;
 			int yy = gy + gh - (int) ((double) (v - lo) / (hi - lo) * gh);
-			p.fill(gx, yy, gx + gw, yy + 1, 0xFF2C2C29);
+			p.fill(gx, yy, gx + gw, yy + 1, 0xFFA8A8A8);
 			String t = HudFormatter.fmt((double) v);
 			p.text(t, gx - 3 - font.width(t), yy - 4, MUTED);
 		}
@@ -549,15 +536,15 @@ final class FcfPanel {
 		p.text(l0, gx, gy + gh + 3, MUTED);
 		p.text("now", gx + gw - font.width("now"), gy + gh + 3, MUTED);
 		line(p, ahPts, from, now, lo, hi, gx, gy, gw, gh, 0xFF8A8A8A);
-		line(p, fcfPts, from, now, lo, hi, gx, gy, gw, gh, 0xFFEDA100);
+		line(p, fcfPts, from, now, lo, hi, gx, gy, gw, gh, 0xFFB07A00);
 		int ly = gy + gh + 14;
-		p.fill(x + 6, ly + 3, x + 14, ly + 5, 0xFFEDA100);
+		p.fill(x + 6, ly + 3, x + 14, ly + 5, 0xFFB07A00);
 		String nowTxt = HudFormatter.fmt(fcfNow);
-		p.text("FCF", x + 17, ly, 0xFFDDDDDD);
+		p.text("FCF", x + 17, ly, McStyle.TEXT);
 		p.text(nowTxt, x + w - 5 - font.width(nowTxt), ly, TEXT);
 		ly += 10;
 		p.fill(x + 6, ly + 3, x + 14, ly + 5, 0xFF8A8A8A);
-		p.text("on the AH", x + 17, ly, 0xFFDDDDDD);
+		p.text("on the AH", x + 17, ly, McStyle.TEXT);
 		String ahTxt = ahPts.isEmpty() ? "-" : HudFormatter.fmt((double) ahPts.get(ahPts.size() - 1)[1]);
 		p.text(ahTxt, x + w - 5 - font.width(ahTxt), ly, TEXT);
 		ly += 10;
@@ -603,6 +590,24 @@ final class FcfPanel {
 	 * The bank balance and the GitHub FCF history are carried over from the downloaded report.
 	 */
 	static JsonObject report() {
+		return withBank(rawReport());
+	}
+
+	/** Your bank from your own API key (MyWallet) when the report has none (no local server). */
+	private static JsonObject withBank(JsonObject r) {
+		JsonObject w = MyWallet.get();
+		if (r == null || w == null) return r;
+		JsonObject now = HudFormatter.obj(r, "now");
+		if (now != null && HudFormatter.num(now, "bank") != null) return r;
+		JsonObject out = r.deepCopy();
+		JsonObject n = now == null ? new JsonObject() : now.deepCopy();
+		n.addProperty("bank", d(w, "bank"));
+		n.addProperty("personal_bank", d(w, "personal_bank"));
+		out.add("now", n);
+		return out;
+	}
+
+	private static JsonObject rawReport() {
 		JsonObject web = report, mod = AhScanner.report();
 		if (mod == null) return web;
 		double webTs = d(HudFormatter.obj(web, "fcf"), "updated"), modTs = d(HudFormatter.obj(mod, "fcf"), "updated");
@@ -624,7 +629,7 @@ final class FcfPanel {
 
 	static String source() {
 		JsonObject mod = AhScanner.report();
-		if (mod != null && report() != report) return "this mod";
+		if (mod != null && rawReport() != report) return "this mod";
 		return source;
 	}
 

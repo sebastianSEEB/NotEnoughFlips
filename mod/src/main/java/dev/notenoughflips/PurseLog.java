@@ -24,7 +24,13 @@ final class PurseLog {
 	private PurseLog() {}
 
 	private static Path file() {
-		return FabricLoader.getInstance().getConfigDir().resolve("notenoughflips-purse.csv");
+		return Accounts.file("purse.csv");
+	}
+
+	/** Another account is playing: forget this one's readings (they stay in its own file). */
+	static synchronized void reset() {
+		points.clear();
+		loaded = false;
 	}
 
 	private static synchronized void load() {

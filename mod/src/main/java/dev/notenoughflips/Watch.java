@@ -48,7 +48,20 @@ final class Watch {
 	static void start(NefConfig config, DataClient client) {
 		cfg = config;
 		data = client;
-		file = FabricLoader.getInstance().getConfigDir().resolve("notenoughflips-watch.json");
+		reload();
+		ScheduledExecutorService ex = Executors.newSingleThreadScheduledExecutor(r -> {
+			Thread t = new Thread(r, "NEF-watch");
+			t.setDaemon(true);
+			return t;
+		});
+		int every = Math.max(10, cfg.watchRecheckSeconds);
+		ex.scheduleWithFixedDelay(Watch::recheck, every, every, TimeUnit.SECONDS);
+	}
+
+	/** Load the watched auctions of the account that is playing (each account has its own list). */
+	static synchronized void reload() {
+		entries.clear();
+		file = Accounts.file("watch.json");
 		try {
 			if (Files.exists(file)) {
 				List<Entry> list = GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), new TypeToken<List<Entry>>() {}.getType());
@@ -57,13 +70,6 @@ final class Watch {
 		} catch (Exception e) {
 			System.err.println("[NEF] could not read watch list: " + e);
 		}
-		ScheduledExecutorService ex = Executors.newSingleThreadScheduledExecutor(r -> {
-			Thread t = new Thread(r, "NEF-watch");
-			t.setDaemon(true);
-			return t;
-		});
-		int every = Math.max(10, cfg.watchRecheckSeconds);
-		ex.scheduleWithFixedDelay(Watch::recheck, every, every, TimeUnit.SECONDS);
 	}
 
 	static void add(String key, double myBid, double maxProfitable, Double lowestNow) {
@@ -113,8 +119,11 @@ final class Watch {
 			JsonObject fresh = data.localLbin(keys).get(10, TimeUnit.SECONDS);   // null if the optional local server isn't running
 			for (String k : keys) {
 				Double lowest = null;
+				MarketBook.Item book = MarketBook.get(k);
 				if (fresh != null && fresh.has(k)) {
 					lowest = HudFormatter.num(fresh.getAsJsonObject(k), "lowest");
+				} else if (book != null && now - MarketBook.updated() < 20 * 60_000L) {
+					lowest = book.lowest();                                // your own AH scan, if it is recent
 				} else {
 					DataClient.Doc d = data.docAsync(k).get(10, TimeUnit.SECONDS);
 					if (d != null && d.json() != null) {

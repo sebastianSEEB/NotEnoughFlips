@@ -78,6 +78,7 @@ public final class NefClient implements ClientModInitializer {
 		FlipFeed.init(config);
 		Sniper.init(config);
 		Bidders.init(config);
+		MyWallet.init(config);
 		AhMarket.init();
 		FlipPanel.init(config, data);
 		SignFill.init(config, data);
@@ -90,8 +91,10 @@ public final class NefClient implements ClientModInitializer {
 		boolean[] greeted = {false};
 		int[] ticks = {0};
 		net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			Accounts.tick();                                               // another account → its own files
 			if (client.player != null && ticks[0] % 200 == 0) {          // every 10 s
 				try {
+					MyWallet.tick();                                   // your bank (with your API key), every 5 min
 					AhMarket.tick();                                   // AH coins traded per day (Bazaar → Market size)
 					AhScanner.tick(config);                                // scans every scanMinutes
 					BzOrders.check();                                      // bazaar orders outbid / undercut (every 30 s)

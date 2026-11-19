@@ -52,7 +52,7 @@ final class NefConfig {
 	boolean highlightDeals = true;    // yellow border on AH auctions worth buying/bidding (glow when >= 20 % under fair)
 	boolean reportPurse = false;      // send your purse (from the sidebar) to your own local server (advanced; off)
 	int purseReportSeconds = 300;
-	boolean dealAlerts = true;        // chat alert for new underpriced BINs found by the optional local server
+	boolean dealAlerts = true;        // chat alert for new underpriced BINs found by your own AH scan (or a local server)
 	double dealMinDiscountPercent = 20;
 	double dealMinValue = 1_000_000;
 	int dealPollSeconds = 60;   // clicking an auction copies the target bid to your clipboard (you place the bid yourself)

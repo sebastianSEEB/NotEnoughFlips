@@ -61,6 +61,13 @@ final class BzOrders {
 	static void init(NefConfig config, DataClient client) {
 		cfg = config;
 		data = client;
+		reload();
+	}
+
+	/** Load the bazaar orders of the account that is playing. */
+	static synchronized void reload() {
+		orders = new ArrayList<>();
+		lastState.clear();
 		try {
 			Path f = file();
 			if (Files.exists(f)) {
@@ -73,7 +80,7 @@ final class BzOrders {
 	}
 
 	private static Path file() {
-		return FabricLoader.getInstance().getConfigDir().resolve("notenoughflips-bz-orders.json");
+		return Accounts.file("bz-orders.json");
 	}
 
 	private static void save() {

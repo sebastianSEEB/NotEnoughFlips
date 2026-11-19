@@ -73,6 +73,11 @@ final class FlipFeed {
 		cfg = config;
 	}
 
+	/** The underpriced-BIN candidates of the last scan (also used for /nef deals). */
+	static List<Candidate> candidates() {
+		return candidates;
+	}
+
 	static long scanAt() {
 		return scanAt;
 	}
@@ -82,8 +87,8 @@ final class FlipFeed {
 		building = new HashMap<>();
 	}
 
-	/** One auction from the scan (not yours). */
-	static void collect(JsonObject a, long now) {
+	/** One auction from the scan (not yours). Always feeds the market book; the flip buckets only when feed is on. */
+	static void collect(JsonObject a, long now, boolean feed) {
 		if (!a.has("bin") || !a.get("bin").getAsBoolean()) return;
 		if (a.has("claimed") && a.get("claimed").getAsBoolean()) return;
 		if (a.has("end") && a.get("end").getAsLong() <= now) return;
@@ -98,9 +103,10 @@ final class FlipFeed {
 		}
 		AhMarket.category(key[0], a);                                // item → category, for Bazaar → Market size
 		String k = key[0];
-		if (k == null || k.startsWith("PET") || k.equals("ENCHANTED_BOOK")) return;
 		double unit = a.get("starting_bid").getAsDouble() / Math.max(1, count[0]);
 		if (unit <= 0) return;
+		MarketBook.observe(k, unit, variant[0] == null || variant[0].isEmpty());   // lowest + plain price, kept on your PC
+		if (!feed || k == null || k.startsWith("PET") || k.equals("ENCHANTED_BOOK")) return;
 		String name = a.has("item_name") ? a.get("item_name").getAsString() : k;
 		// only identical copies are compared: a plain one vs a starred/recombed/enchanted one is not a "gap"
 		String v = variant[0] == null ? "" : variant[0];

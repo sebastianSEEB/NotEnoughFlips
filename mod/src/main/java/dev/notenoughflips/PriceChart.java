@@ -23,9 +23,10 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
  * above the range show as a red tick at the top. A red banner appears when the item looks manipulated.
  */
 final class PriceChart {
-	private static final int BG = 0xEE0E1116, EDGE = 0xFF3A6EA5, GRID = 0x22FFFFFF, LINE = 0xFF55AAFF, BAND = 0x3355AAFF,
-			LBIN = 0xFFFFD34D, FAIR = 0xFF55FF55, LISTING = 0xFFFFFFFF, VOL = 0x8855AAFF, TEXT = 0xFFFFFFFF, MUTED = 0xFF8A8A8A,
-			BAD = 0xFFFF5555;
+	// inventory look (McStyle): grey container, dark text
+	private static final int GRID = 0x30000000, LINE = 0xFF2A6FD6, BAND = 0x402A6FD6,
+			LBIN = 0xFFB07A00, FAIR = McStyle.GOOD, LISTING = McStyle.TEXT, VOL = 0x882A6FD6, TEXT = McStyle.TEXT, MUTED = McStyle.MUTED,
+			BAD = McStyle.BAD;
 
 	private record Hover(String key, String name, Double listing, long at) {}
 
@@ -67,15 +68,15 @@ final class PriceChart {
 		String manipText = manip ? firstSevere(d) : null;
 		int bannerH = manip ? 22 : 0;
 		int height = 14 + bannerH + 2 + (ph - 22) + 21 + 20;           // title, banner, plot, volume, legend + footer
-		p.fill(x, top, x + w, top + height, BG);
-		p.fill(x, top, x + w, top + 1, manip ? BAD : EDGE);
+		McStyle.panel(p, x, top, x + w, top + height);
+		if (manip) p.fill(x + 2, top + 2, x + w - 2, top + 3, BAD);
 		p.text(FcfPanel.fit(h.name(), w - 60), x + 4, top + 3, TEXT);
 		p.text("7 days", x + w - font.width("7 days") - 4, top + 3, MUTED);
 		int y = top + 14;
 		if (manip) {
 			p.fill(x + 2, y, x + w - 2, y + 20, 0x55FF0000);
 			p.text("⚠ POSSIBLE MANIPULATION", x + 5, y + 1, BAD);
-			p.text(FcfPanel.fit(manipText, w - 10), x + 5, y + 10, 0xFFFFAAAA);
+			p.text(FcfPanel.fit(manipText, w - 10), x + 5, y + 10, BAD);
 			y += bannerH;
 		}
 		int cx = x + 30, cw = w - 34, cy = y + 2, ch = ph - 22;            // plot area (left 30 px: y labels)
@@ -182,7 +183,7 @@ final class PriceChart {
 
 	private static int legend(Highlight.Painter p, int x, int y, int color, String t) {
 		p.fill(x, y + 3, x + 6, y + 5, color);
-		p.text(t, x + 8, y, 0xFFCCCCCC);
+		p.text(t, x + 8, y, TEXT);
 		return x + 8 + Minecraft.getInstance().font.width(t) + 6;
 	}
 

@@ -53,7 +53,7 @@ Click a row to open that auction.
 2. Put the jar for your Minecraft version in your `mods` folder.
 3. Join SkyBlock, press E, click FLIP and answer the three setup questions: your budget per flip, how much risk you accept, and how long you're willing to wait for a sale.
 
-The bidder check needs a Hypixel API key, which you can get for free at developer.hypixel.net. Add it with `/nef apikey <key>`. It is saved only in your own config file.
+A free Hypixel API key (developer.hypixel.net) turns on the bidder check and adds your bank balance to the Trade Desk. Add it with `/nef apikey <key>`. It is saved only in your own config file.
 
 ## Commands
 
@@ -74,7 +74,7 @@ The bidder check needs a Hypixel API key, which you can get for free at develope
 No. It never sends purchases, bids or clicks. The most it does is open an auction page or fill in a bazaar search, and you press every button.
 
 **Where does the data come from?**
-The public Hypixel API, SkyCofl price history, and an open data site that is rebuilt every hour from those APIs. The mod collects no player data.
+The public Hypixel API, SkyCofl price history, and an open data site that is rebuilt every hour from those APIs. Everything else is worked out on your own PC: the mod's own auction house scan gives the lowest BINs, upgrade prices and cheap-BIN deals, and auction forecasts are calculated locally. Your trades, profit, coins history and watch list are stored per Minecraft account in your `.minecraft/config` folder, and nothing about you is sent anywhere.
 
 **Why does an item say NO RELIABLE PRICE?**
 Its recent sales are spread so widely that any average would be misleading.

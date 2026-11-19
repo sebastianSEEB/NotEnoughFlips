@@ -28,8 +28,9 @@ import net.minecraft.world.inventory.ChestMenu;
  */
 final class FlipPanel {
 	private static final int BTN_W = 30, BTN_H = 14, W = 160, R2 = 20;
-	private static final int BG = 0xE8101418, EDGE = 0xFF1BAF7A, TEXT = 0xFFFFFFFF, MUTED = 0xFF8A8A8A, DIM = 0xFF5E5E5E,
-			GOOD = 0xFF55FF55, WARN = 0xFFFFFF55, BAD = 0xFFFF5555, GOLD = 0xFFFFAA00, CHIP = 0xE0202830, CHIP_ON = 0xFF1BAF7A;
+	// inventory look (McStyle): grey container, dark text, stone buttons
+	private static final int TEXT = McStyle.TEXT, MUTED = McStyle.MUTED, DIM = McStyle.DIM,
+			GOOD = McStyle.GOOD, WARN = McStyle.WARN, BAD = McStyle.BAD, GOLD = McStyle.GOLD;
 	private static final String[] TABS = {"AH", "Bazaar", "Craft", "Snipe", "Profit"};
 
 	private record Hit(int x1, int y1, int x2, int y2, Runnable action) {}
@@ -69,8 +70,7 @@ final class FlipPanel {
 
 	private static void chip(Highlight.Painter p, int x, int y, String t, boolean on, Runnable action) {
 		int w = width(t) + 8;
-		p.fill(x, y, x + w, y + 12, on ? CHIP_ON : CHIP);
-		p.text(t, x + 4, y + 2, on ? TEXT : 0xFFCCCCCC);
+		McStyle.button(p, x, y, x + w, y + 12, t, on);
 		hits.add(new Hit(x, y, x + w, y + 12, action));
 	}
 
@@ -99,9 +99,7 @@ final class FlipPanel {
 		hits.clear();
 		int[] box = GuiPos.box(s);
 		int bx = Math.min(box[0] + box[2] + 3, s.width - BTN_W - 2), by = box[1];
-		p.fill(bx, by, bx + BTN_W, by + BTN_H, open ? EDGE : 0xF0202830);
-		p.fill(bx, by, bx + 2, by + BTN_H, GOLD);
-		p.text("FLIP", bx + 5, by + 3, open ? TEXT : GOLD);
+		McStyle.button(p, bx, by, bx + BTN_W, by + BTN_H, "FLIP", open);
 		if (!open) return;
 
 		int w = Math.max(110, Math.min(W, s.width - bx - 2));
@@ -143,9 +141,7 @@ final class FlipPanel {
 			y = footer(q, x, y + 2, w);
 		}
 		int h = Math.min(y + 3, maxY) - y0;
-		p.fill(x, y0, x + w, y0 + h, BG);
-		p.fill(x, y0, x + w, y0 + 1, EDGE);
-		p.fill(x, y0 + h - 1, x + w, y0 + h, EDGE);
+		McStyle.panel(p, x, y0, x + w, y0 + h);
 		for (Runnable r : deferred) r.run();
 		hits.add(new Hit(x, y0, x + w, y0 + h, () -> {}));          // clicks inside the panel never reach the menu
 	}
@@ -193,7 +189,7 @@ final class FlipPanel {
 	}
 
 	private static int footer(Highlight.Painter p, int x, int y, int w) {
-		p.fill(x + 3, y, x + w - 3, y + 1, 0x40FFFFFF);
+		p.fill(x + 3, y, x + w - 3, y + 1, McStyle.LINE);
 		y += 3;
 		int cx = x + 3;
 		chip(p, cx, y, "Simple", cfg.simpleMode, () -> { cfg.simpleMode = true; cfg.save(); });
@@ -482,7 +478,7 @@ final class FlipPanel {
 			long ago = (now - a.at()) / 60000;
 			String detail = HudFormatter.fmt(a.price()) + " → " + HudFormatter.fmt(a.resale()) + " · " + (ago < 1 ? "just now" : ago + "m ago")
 					+ (bad ? " · " + a.status().substring(5) : "");
-			row(p, x, y, w, mark + a.name(), right, bad ? BAD : ok ? GOOD : 0xFFFFFF55, detail,
+			row(p, x, y, w, mark + a.name(), right, bad ? BAD : ok ? GOOD : WARN, detail,
 					bad ? null : () -> Cmd.viewAuction(a.uuid()));
 			y += 21;
 		}

@@ -191,16 +191,16 @@ final class Bidders {
 		double richest = Double.NaN;
 		String richestName = null;
 		boolean hidden = false;
-		if (list.isEmpty()) rows.add(new String[]{"No other bidders yet: the starting bid is enough.", "AAAAAA"});
+		if (list.isEmpty()) rows.add(new String[]{"No other bidders yet: the starting bid is enough.", "6E6E6E"});
 		for (Bid b : list) {
 			JsonObject wj = wealth.get(b.name().toLowerCase(Locale.ROOT));
 			double cap = capacity(b, wj);
 			String text;
-			String col = "FFFFFF";
+			String col = "404040";
 			if (wj == null) text = b.name() + "  bid " + HudFormatter.fmt(b.amount()) + "  · looking up…";
 			else if (wj.has("error")) {
 				text = b.name() + "  · " + wj.get("error").getAsString();
-				col = "AAAAAA";
+				col = "6E6E6E";
 			} else {
 				boolean bankHidden = !wj.has("bank_visible") || !wj.get("bank_visible").getAsBoolean();
 				hidden |= bankHidden;
@@ -223,14 +223,13 @@ final class Bidders {
 		for (String[] r : rows) w = Math.max(w, font.width(r[0]) + 12);
 		if (foot != null) w = Math.max(w, font.width(foot) + 12);
 		int h = lines * 10 + 6;
-		p.fill(x, y, x + w, y + h, 0xE0101418);
-		p.fill(x, y, x + w, y + 1, 0xFFFFAA00);
-		p.text(head, x + 6, y + 4, 0xFFFFAA00);
+		McStyle.panel(p, x, y, x + w, y + h);
+		p.text(head, x + 6, y + 4, McStyle.GOLD);
 		int ly = y + 14;
 		for (String[] r : rows) {
 			p.text(r[0], x + 6, ly, 0xFF000000 | Integer.parseInt(r[1], 16));
 			ly += 10;
 		}
-		if (foot != null) p.text(foot, x + 6, ly, 0xFF55FF55);
+		if (foot != null) p.text(foot, x + 6, ly, McStyle.GOOD);
 	}
 }

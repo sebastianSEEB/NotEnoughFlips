@@ -58,7 +58,13 @@ final class ProfitLog {
 	}
 
 	private static Path file() {
-		return FabricLoader.getInstance().getConfigDir().resolve("notenoughflips-trades.csv");
+		return Accounts.file("trades.csv");
+	}
+
+	/** Another account is playing: its own trades load from its own file. */
+	static synchronized void reset() {
+		trades.clear();
+		loaded = false;
 	}
 
 	private static synchronized void load() {

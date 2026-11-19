@@ -40,7 +40,7 @@ import net.minecraft.client.Minecraft;
  *
  *   potential FCF = wallet + ongoing sales − ongoing bids + expected sale value (+ outbid refunds)
  *
- * The FCF history (Trend tab / Trade Desk analytics) is kept in .minecraft/config/nef-fcf.csv (7 days).
+ * The coins history (Trade Desk → Coins → History) is kept per account in config/notenoughflips/accounts/<uuid>/coins-history.csv (7 days).
  */
 final class AhScanner {
 	private static final long ON_OPEN_MS = 2 * 60_000L;
@@ -58,6 +58,13 @@ final class AhScanner {
 
 	static JsonObject report() {
 		return report;
+	}
+
+	/** Another account is playing: drop the last report and scan again for this account. */
+	static void reset() {
+		report = null;
+		lastStart = 0;
+		lastDone = 0;
 	}
 
 	static long lastDone() {
@@ -118,6 +125,7 @@ final class AhScanner {
 	private static void scan(String me) throws Exception {
 		List<JsonObject> mine = new ArrayList<>();
 		long now = System.currentTimeMillis();
+		MarketBook.begin();
 		if (feed) FlipFeed.begin();
 		int pages = 1;
 		long updated = 0;
@@ -134,7 +142,7 @@ final class AhScanner {
 							while (r.hasNext()) {
 								JsonObject a = JsonParser.parseReader(r).getAsJsonObject();
 								if (involves(a, me)) mine.add(a);
-								else if (feed) FlipFeed.collect(a, now);      // every other BIN: cheapest copies per item
+								else FlipFeed.collect(a, now, feed);          // every other BIN: market book (+ flip feed)
 							}
 							r.endArray();
 						}
@@ -146,6 +154,7 @@ final class AhScanner {
 			status = "scanning the AH… page " + (p + 1) + "/" + pages;
 		}
 		build(mine, me, updated > 0 ? updated : System.currentTimeMillis());
+		MarketBook.finish(updated > 0 ? updated : System.currentTimeMillis());
 		if (feed) FlipFeed.finish(updated > 0 ? updated : System.currentTimeMillis());
 		lastDone = System.currentTimeMillis();
 		status = "";
@@ -334,7 +343,7 @@ final class AhScanner {
 		Path file = null;
 		List<String> lines = new ArrayList<>();
 		try {
-			file = FabricLoader.getInstance().getConfigDir().resolve("notenoughflips-fcf.csv");
+			file = Accounts.file("coins-history.csv");
 			if (Files.exists(file)) lines.addAll(Files.readAllLines(file, StandardCharsets.UTF_8));
 		} catch (IOException | RuntimeException ignored) {
 			// start fresh
