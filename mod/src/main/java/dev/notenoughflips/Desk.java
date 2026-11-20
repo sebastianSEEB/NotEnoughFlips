@@ -699,7 +699,7 @@ final class Desk {
 	// ================================================================== Coins: tabs
 	private static void coins(Highlight.Painter p, int x, int y, int w, int h, JsonObject f, JsonObject n, List<JsonObject> pos) {
 		int cx = x;
-		for (String[] t : new String[][]{{"summary", "Summary"}, {"breakdown", "Where they are"}, {"history", "History"}, {"report", "Open auctions"}}) {
+		for (String[] t : new String[][]{{"summary", "Summary"}, {"breakdown", "Where they are"}, {"history", "History"}, {"report", "Open auctions"}, {"flips", "AH flips"}}) {
 			final String id = t[0];
 			cx = chip(p, cx, y, t[1], coinsView.equals(id), () -> coinsView = id);
 		}
@@ -708,8 +708,46 @@ final class Desk {
 			case "breakdown" -> breakdown(p, x, cy, w, ch, n, pos);
 			case "history" -> { if (f != null) history(p, x, cy, w, ch, f, n); }
 			case "report" -> report(p, x, cy, w, ch, n, pos);
+			case "flips" -> ahFlips(p, x, cy, w, ch);
 			default -> finance(p, x, cy, w, ch, n);
 		}
+	}
+
+	/**
+	 * Every AH flip of the last 30 days: what you paid, what you got after AH fees, profit and %, how long you held it.
+	 * AH buys you haven't sold yet are listed first. Click a row to search it on the AH.
+	 */
+	private static void ahFlips(Highlight.Painter p, int x, int y, int w, int h) {
+		long now = System.currentTimeMillis();
+		List<Row> rows = new ArrayList<>();
+		double heldCost = 0;
+		int heldN = 0;
+		for (ProfitLog.Lot l : ProfitLog.openLots()) {
+			if (!"AH".equals(l.market())) continue;
+			heldCost += l.unitCost() * l.qty();
+			heldN++;
+			final String item = l.item().replaceAll("[^A-Za-z0-9 '()\\-]", "").trim();
+			rows.add(new Row(new String[]{l.item(), fmt(l.unitCost() * l.qty()), "not sold", "-", "-", ProfitLog.ago(now - l.ts()), ProfitLog.ago(now - l.ts()) + " ago"},
+					new int[]{0, 0, MUTED, MUTED, MUTED, MUTED, MUTED}, "H", 0xFF6F6F6F, () -> Cmd.ahSearch(item)));
+		}
+		List<ProfitLog.Flip> flips = ProfitLog.flips(ProfitLog.startOfDay(29), "AH");
+		double profit = 0, cost = 0;
+		for (ProfitLog.Flip f : flips) {
+			profit += f.profit();
+			cost += f.cost();
+			double pct = f.cost() > 0 ? f.profit() / f.cost() * 100 : 0;
+			int c = f.profit() >= 0 ? GREEN : RED;
+			final String item = f.item().replaceAll("[^A-Za-z0-9 '()\\-]", "").trim();
+			rows.add(new Row(new String[]{f.item(), fmt(f.cost()), fmt(f.got()), signed(f.profit()), String.format(Locale.ROOT, "%+.0f%%", pct),
+					f.buyTs() > 0 ? ProfitLog.ago(f.ts() - f.buyTs()) : "-", ProfitLog.ago(now - f.ts()) + " ago"},
+					new int[]{0, 0, 0, c, c, MUTED, MUTED}, "A", 0xFFF26A1B, () -> Cmd.ahSearch(item)));
+		}
+		String head = flips.size() + " AH flip" + (flips.size() == 1 ? "" : "s") + " in 30 days: " + signed(profit)
+				+ (cost > 0 ? String.format(Locale.ROOT, " (%+.1f%% on %s spent)", profit / cost * 100, fmt(cost)) : "");
+		p.text(FcfPanel.fit(head, w), x, y, profit >= 0 ? GREEN : RED);
+		table(p, x, y + 14, w, h - 14, new Col[]{new Col("Item", 0.29, false), new Col("Paid", 0.11, true), new Col("Sold for", 0.12, true),
+				new Col("Profit", 0.13, true), new Col("%", 0.10, true), new Col("Held", 0.09, true), new Col("When", 0.16, true)}, rows,
+				(heldN > 0 ? "H = not sold yet (" + fmt(heldCost) + ") · " : "") + "Sold for = after AH fees");
 	}
 
 	private static void history(Highlight.Painter p, int x, int y, int w, int h, JsonObject f, JsonObject n) {

@@ -213,6 +213,19 @@ final class ProfitLog {
 		return new Summary(profit, flips.size(), best, unmatched, recent);
 	}
 
+	/** Finished flips (buy matched to a sale) on one market ("AH" / "BZ", null = both) since `from`, newest first. */
+	static List<Flip> flips(long from, String market) {
+		List<Flip> out = new ArrayList<>();
+		for (Flip f : summary(from).recent()) if (market == null || market.equals(f.market())) out.add(f);
+		return out;
+	}
+
+	/** Short "how long ago / how long" text: 45m, 3h, 2d. */
+	static String ago(long ms) {
+		long m = Math.max(0, ms / 60_000L);
+		return m < 60 ? m + "m" : m < 48 * 60 ? (m / 60) + "h" : (m / 1440) + "d";
+	}
+
 	/** Everything bought in the last 30 days that isn't sold yet (first in, first out), newest first. */
 	static synchronized List<Lot> openLots() {
 		load();

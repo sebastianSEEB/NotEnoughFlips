@@ -633,23 +633,53 @@ final class FlipPanel {
 			p.text(FcfPanel.fit("Best: " + week.best().item() + " +" + HudFormatter.fmt(week.best().profit()), w - 8), x + 4, y, MUTED);
 			y += 11;
 		}
-		if (week.flips() == 0) {
-			p.text(FcfPanel.fit("No flips logged yet: buys + sells", w - 8), x + 4, y, DIM);
-			p.text(FcfPanel.fit("from chat are matched for you", w - 8), x + 4, y + 9, DIM);
-			return y + 20;
-		}
 		y += 2;
-		section(p, x, y, w, "Recent", null);
-		y += 11;
-		for (int i = 0; i < week.recent().size() && y + 10 <= bottom && i < 8; i++) {
-			ProfitLog.Flip f = week.recent().get(i);
-			String right = (f.profit() >= 0 ? "+" : "") + HudFormatter.fmt(f.profit());
-			p.text(FcfPanel.fit(f.item(), w - width(right) - 12), x + 4, y, TEXT);
-			p.text(right, x + w - width(right) - 4, y, f.profit() >= 0 ? GOOD : BAD);
-			y += 10;
+		// AH flips: what you paid, what you got after fees, profit; then AH buys you haven't sold yet
+		int cx = x + 3;
+		for (String[] m : new String[][]{{"AH", "AH flips"}, {"ALL", "All flips"}}) {
+			final String id = m[0];
+			chip(p, cx, y, m[1], id.equals(profitView), () -> profitView = id);
+			cx += chipW(m[1]) + 2;
+		}
+		y += 15;
+		boolean ahOnly = "AH".equals(profitView);
+		List<ProfitLog.Flip> list = ProfitLog.flips(ProfitLog.startOfDay(29), ahOnly ? "AH" : null);
+		long now = System.currentTimeMillis();
+		if (list.isEmpty()) {
+			p.text(FcfPanel.fit(ahOnly ? "No AH flips yet: buy on the AH, sell it" : "No flips logged yet: buys + sells", w - 8), x + 4, y, DIM);
+			p.text(FcfPanel.fit("again, and it shows up here", w - 8), x + 4, y + 9, DIM);
+			y += 20;
+		}
+		for (int i = 0; i < list.size() && y + R2 <= bottom - (ahOnly ? 22 : 0); i++) {
+			ProfitLog.Flip f = list.get(i);
+			double pct = f.cost() > 0 ? f.profit() / f.cost() * 100 : 0;
+			String right = String.format(Locale.ROOT, "%s%s %+.0f%%", f.profit() >= 0 ? "+" : "", HudFormatter.fmt(f.profit()), pct);
+			String held = f.buyTs() > 0 ? " · held " + ProfitLog.ago(f.ts() - f.buyTs()) : "";
+			String detail = "paid " + HudFormatter.fmt(f.cost()) + " → got " + HudFormatter.fmt(f.got()) + held;
+			final String item = f.item().replaceAll("[^A-Za-z0-9 '()\\-]", "").trim();
+			final boolean ah = "AH".equals(f.market());
+			row(p, x, y, w, f.item(), right, f.profit() >= 0 ? GOOD : BAD, detail, () -> { if (ah) Cmd.ahSearch(item); else Cmd.bazaar(item); });
+			y += R2;
+		}
+		if (ahOnly) {
+			List<ProfitLog.Lot> open = new ArrayList<>();
+			for (ProfitLog.Lot l : ProfitLog.openLots()) if ("AH".equals(l.market())) open.add(l);
+			if (!open.isEmpty() && y + 11 + R2 <= bottom) {
+				section(p, x, y, w, "Bought, not sold yet", open.size() + "");
+				y += 11;
+				for (int i = 0; i < open.size() && y + R2 <= bottom; i++) {
+					ProfitLog.Lot l = open.get(i);
+					final String item = l.item().replaceAll("[^A-Za-z0-9 '()\\-]", "").trim();
+					row(p, x, y, w, l.item(), "paid " + HudFormatter.fmt(l.unitCost() * l.qty()), MUTED,
+							ProfitLog.ago(now - l.ts()) + " ago · click to see it on the AH", () -> Cmd.ahSearch(item));
+					y += R2;
+				}
+			}
 		}
 		return y;
 	}
+
+	private static String profitView = "AH";
 
 	private static int total(Highlight.Painter p, int x, int y, int w, String label, ProfitLog.Summary s) {
 		String v = (s.profit() >= 0 ? "+" : "") + HudFormatter.fmt(s.profit());
