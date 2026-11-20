@@ -153,8 +153,8 @@ final class AhScanner {
 			}
 			status = "scanning the AH… page " + (p + 1) + "/" + pages;
 		}
+		MarketBook.finish(updated > 0 ? updated : System.currentTimeMillis());   // first: your listings are checked against it
 		build(mine, me, updated > 0 ? updated : System.currentTimeMillis());
-		MarketBook.finish(updated > 0 ? updated : System.currentTimeMillis());
 		if (feed) FlipFeed.finish(updated > 0 ? updated : System.currentTimeMillis());
 		lastDone = System.currentTimeMillis();
 		status = "";
@@ -219,11 +219,13 @@ final class AhScanner {
 		double sales = 0, salesCons = 0, bids = 0, expected = 0, refunds = 0, profitWins = 0;
 		int nSales = 0, nWin = 0, nOut = 0, unvalued = 0;
 		long now = System.currentTimeMillis();
+		List<Undercut.Mine> myBins = new ArrayList<>();
 		for (JsonObject a : mine) {
 			String[] key = {null};
 			int[] count = {1};
+			Spec[] spec = {null};
 			try {
-				identify(a.get("item_bytes").getAsString(), key, count);
+				identify(a.get("item_bytes").getAsString(), key, count, new String[]{""}, spec);
 			} catch (Exception ignored) {
 				// unknown item: still counted, without a value
 			}
@@ -244,7 +246,13 @@ final class AhScanner {
 			if (me.equals(uid(a, "auctioneer"))) {
 				double gross;
 				String st;
-				if (bin) { gross = num(a, "starting_bid"); st = "listed (BIN)"; }
+				if (bin) {
+					gross = num(a, "starting_bid");
+					st = "listed (BIN)";
+					if (key[0] != null && spec[0] != null && num(a, "end") > now && top <= 0)
+						myBins.add(new Undercut.Mine(a.get("uuid").getAsString(), key[0],
+								a.has("item_name") ? a.get("item_name").getAsString() : null, gross / Math.max(1, count[0]), spec[0]));
+				}
 				else if (top > 0) { gross = top; st = "has bids"; }
 				else { gross = num(a, "starting_bid"); st = "no bids yet"; }
 				double realistic = st.equals("has bids") || val == null ? gross : Math.min(gross, val);
@@ -287,6 +295,7 @@ final class AhScanner {
 			}
 			positions.add(p);
 		}
+		Undercut.setMine(myBins);                                     // your BINs vs everything listed now
 		JsonObject n = new JsonObject();
 		n.addProperty("sales", sales);
 		n.addProperty("sales_conservative", salesCons);

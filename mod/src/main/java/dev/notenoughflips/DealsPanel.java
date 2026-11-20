@@ -38,7 +38,7 @@ final class DealsPanel {
 	}
 
 	private static boolean active(Screen s) {
-		return cfg != null && cfg.dealsButton && (s instanceof InventoryScreen
+		return cfg != null && !TradeCheck.isTrade(s) && cfg.dealsButton && (s instanceof InventoryScreen
 				|| s instanceof AbstractContainerScreen<?> acs && acs.getMenu() instanceof ChestMenu);
 	}
 

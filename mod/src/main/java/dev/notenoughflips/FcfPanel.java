@@ -61,7 +61,7 @@ final class FcfPanel {
 	}
 
 	private static boolean active(Screen s) {
-		return cfg != null && cfg.fcfButton && (s instanceof InventoryScreen
+		return cfg != null && !TradeCheck.isTrade(s) && cfg.fcfButton && (s instanceof InventoryScreen
 				|| s instanceof AbstractContainerScreen<?> acs && acs.getMenu() instanceof ChestMenu);
 	}
 

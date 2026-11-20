@@ -69,9 +69,19 @@ final class SignFill {
 	static void signOpened(Screen s) {
 		try {
 			if (cfg == null || !cfg.signFill || !(s instanceof AbstractSignEditScreen)) return;
+			String t = lastContainerTitle;
+			String lt = t.toLowerCase(Locale.ROOT);
+			if (cfg.listPriceFill && lt.contains("create") && lt.contains("auction")) {      // the BIN price sign
+				ListPrice.Suggestion g = ListPrice.forSign();
+				String[] lines = g == null ? null : lines(s);
+				if (lines == null || lines[0] != null && !lines[0].isBlank()) return;
+				lines[0] = Long.toString(g.total());
+				Chat.say(HudFormatter.line("[NEF] ", HudFormatter.GOLD, "filled in " + String.format(Locale.ROOT, "%,d", g.total())
+						+ " (" + g.why() + "). ", HudFormatter.WHITE, "Change it if you like, then press Done.", HudFormatter.GRAY));
+				return;
+			}
 			String id = FlipPanel.pendingId(), name = FlipPanel.pendingName();
 			if (id == null || name == null) return;
-			String t = lastContainerTitle;
 			if (!t.contains("Bazaar") && !t.contains("➜")) return;               // only for bazaar signs
 			String[] lines = lines(s);
 			if (lines == null) return;

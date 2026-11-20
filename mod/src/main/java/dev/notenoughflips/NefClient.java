@@ -88,6 +88,8 @@ public final class NefClient implements ClientModInitializer {
 		MyWallet.init(config);
 		DealsPanel.init(config);
 		DiscordButton.init(config);
+		Undercut.init(config);
+		TradeCheck.init(config);
 		OrdersHud.init(config, data);
 		Keys.register();
 		AhMarket.init();
@@ -100,6 +102,7 @@ public final class NefClient implements ClientModInitializer {
 				.map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse("?");
 		System.out.println("[NEF] " + version + " loaded");
 		boolean[] greeted = {false};
+		boolean[] wasInWorld = {false};
 		int[] ticks = {0};
 		net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			Accounts.tick();                                               // another account → its own files
@@ -126,6 +129,9 @@ public final class NefClient implements ClientModInitializer {
 					// not in SkyBlock
 				}
 			}
+			boolean inWorld = client.player != null;
+			if (inWorld && !wasInWorld[0]) ProfitLog.startSession();     // joined a server: new session
+			wasInWorld[0] = inWorld;
 			if (greeted[0] || client.player == null) return;
 			greeted[0] = true;                         // once per game start: proves the mod is loaded
 			Chat.say(HudFormatter.line("[Not Enough Flips " + version + "] ", HudFormatter.GOLD,
@@ -491,6 +497,15 @@ public final class NefClient implements ClientModInitializer {
 													ctx.getSource().sendFeedback(Component.literal("[NEF] Bazaar orders HUD shows up to " + config.bzHudMax + " orders per side."));
 													return 1;
 												}))))
+						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("session").executes(ctx -> {
+							ctx.getSource().sendFeedback(Component.literal("[NEF] " + ProfitLog.sessionLine()));
+							return 1;
+						}))
+						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("settings").executes(ctx -> {
+							Desk.show("settings");
+							ctx.getSource().sendFeedback(Component.literal("[NEF] Settings are in the Trade Desk: press E."));
+							return 1;
+						}))
 						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("desk").executes(ctx -> {
 							Desk.toggle();
 							ctx.getSource().sendFeedback(Component.literal(Desk.isOn() ? "[NEF] Trade Desk open: press E." : "[NEF] Trade Desk closed."));

@@ -55,7 +55,7 @@ final class FlipPanel {
 	}
 
 	private static boolean active(Screen s) {
-		return cfg != null && cfg.flipButton && (s instanceof InventoryScreen
+		return cfg != null && !TradeCheck.isTrade(s) && cfg.flipButton && (s instanceof InventoryScreen
 				|| s instanceof AbstractContainerScreen<?> acs && acs.getMenu() instanceof ChestMenu);
 	}
 
@@ -641,6 +641,11 @@ final class FlipPanel {
 		ProfitLog.Summary week = ProfitLog.summary(ProfitLog.startOfDay(6));
 		section(p, x, y, w, "Realized profit", null);
 		y += 12;
+		ProfitLog.Summary ses = ProfitLog.session();
+		y = total(p, x, y, w, "Session", ses);
+		String ph = HudFormatter.fmt(ProfitLog.perHour(ses.profit(), System.currentTimeMillis() - ProfitLog.sessionStart())) + "/h this session";
+		p.text(FcfPanel.fit(ph, w - 2 * PAD), x + PAD, y, MUTED);
+		y += 11;
 		y = total(p, x, y, w, "Today", today);
 		y = total(p, x, y, w, "7 days", week);
 		if (week.best() != null) {

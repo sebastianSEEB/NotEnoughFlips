@@ -84,6 +84,8 @@ final class BidHelper {
 					DealsPanel.paint(s, painter);
 					if (s instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen) Desk.paint(s, painter);
 					DiscordButton.paint(s, painter);
+					if (cfg.listPriceFill) ListPrice.paint(s, painter);   // Create BIN Auction: suggested price
+					TradeCheck.paint(s, painter);                           // player trades: what each side is worth
 				} catch (RuntimeException e) {                 // never let a drawing bug break the inventory
 					System.err.println("[NEF] FCF/Trade Desk: " + e);
 				}

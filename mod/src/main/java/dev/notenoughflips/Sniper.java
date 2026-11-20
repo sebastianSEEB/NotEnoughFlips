@@ -140,7 +140,7 @@ final class Sniper {
 		while (true) {
 			try {
 				Thread.sleep(250);
-				if (cfg == null || !cfg.sniper || Minecraft.getInstance().player == null) continue;
+				if (cfg == null || !(cfg.sniper || Undercut.watching()) || Minecraft.getInstance().player == null) continue;
 				long now = System.currentTimeMillis();
 				retryPending();
 				if (refs.isEmpty()) {                                   // needs one full scan for the reference prices
@@ -217,7 +217,8 @@ final class Sniper {
 								if (!seen.add(a.get("uuid").getAsString())) continue;
 								if (seen.size() > 5000) seen.remove(seen.iterator().next());
 							}
-							handle(a);
+							Undercut.check(a);                                // someone undercut one of your BINs?
+							if (cfg.sniper) handle(a);
 						}
 						r.endArray();
 					} else r.skipValue();

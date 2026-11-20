@@ -69,6 +69,13 @@ final class Desk {
 		return on;
 	}
 
+	/** Open the Trade Desk on one section (e.g. "settings"). */
+	static void show(String id) {
+		on = true;
+		open(id);
+		FcfPanel.refresh(true);
+	}
+
 	static void toggle() {
 		on = !on;
 		page = 0;
@@ -243,7 +250,8 @@ final class Desk {
 			{"selling", "Listings", "items you are selling"},
 			{"holdings", "Bought", "what you bought: paid, now, target, progress"},
 			{"finance", "Coins", "your coins and your profit"},
-			{"market", "Bazaar", "prices, tips and market size"}};
+			{"market", "Bazaar", "prices, tips and market size"},
+			{"settings", "Settings", "everything you can change, in one place"}};
 
 	private static void sidebar(Highlight.Painter p, int x, int y, int w, int H, JsonObject n, List<JsonObject> pos) {
 		int x1 = x + 4, x2 = x + w - 2, y1 = y + 6, y2 = H - 6;
@@ -295,7 +303,7 @@ final class Desk {
 		p.text(title, x + 8, y + 7, INK);
 		p.text(FcfPanel.fit("- " + sub, w - w(title) - 24), x + 12 + w(title), y + 7, MUTED);
 		int bx = x + 8, by = y + 22, bw = w - 16, bh = h - 28;
-		boolean needsAh = !win.equals("market") && !win.equals("home") && !win.equals("holdings");
+		boolean needsAh = !win.equals("market") && !win.equals("home") && !win.equals("holdings") && !win.equals("settings");
 		if (needsAh && n == null) {
 			p.text(FcfPanel.report() == null ? "Loading your auctions…" : "No auctions found yet. Your auctions are checked every 15 min.", bx, by + 4, MUTED);
 			p.text("Tip: open the FLIP panel (press E) to find something to buy or sell.", bx, by + 16, MUTED);
@@ -308,8 +316,109 @@ final class Desk {
 			case "holdings" -> holdings(p, bx, by, bw, bh);
 			case "finance" -> coins(p, bx, by, bw, bh, f, n, pos);
 			case "market" -> market(p, bx, by, bw, bh);
+			case "settings" -> settings(p, bx, by, bw, bh);
 			default -> home(p, bx, by, bw, bh, n, pos);
 		}
+	}
+
+	// ================================================================== Settings
+	/** One setting: a label and its choices; the selected one is underlined. Returns the next row's y. */
+	private static int setting(Highlight.Painter p, int x, int y, int labelW, String label, String[] choices, int selected,
+			java.util.function.IntConsumer pick) {
+		p.text(label, x, y, MUTED);
+		int cx = x + labelW;
+		for (int i = 0; i < choices.length; i++) {
+			final int k = i;
+			cx = chip(p, cx, y, choices[i], i == selected, () -> { pick.accept(k); cfg.save(); });
+		}
+		return y + 14;
+	}
+
+	private static int onOff(Highlight.Painter p, int x, int y, int labelW, String label, boolean v, java.util.function.Consumer<Boolean> set) {
+		return setting(p, x, y, labelW, label, new String[]{"on", "off"}, v ? 0 : 1, i -> set.accept(i == 0));
+	}
+
+	private static int pick(double[] values, double current) {
+		int best = 0;
+		for (int i = 1; i < values.length; i++) if (Math.abs(values[i] - current) < Math.abs(values[best] - current)) best = i;
+		return best;
+	}
+
+	private static String settingsView = "ah";
+
+	/** All settings, one group at a time (Auction House, Sniper, Bazaar, Buttons & general). Saved on every click. */
+	private static void settings(Highlight.Painter p, int x, int y, int w, int h) {
+		int cx = x;
+		for (String[] t : new String[][]{{"ah", "Auction House"}, {"snipe", "Sniper"}, {"bz", "Bazaar"}, {"general", "Buttons & general"}}) {
+			final String id = t[0];
+			cx = chip(p, cx, y, t[1], settingsView.equals(id), () -> settingsView = id);
+		}
+		int ly = y + 18, lw = 0;
+		for (String l : new String[]{"Min item value", "Suggest BIN price", "Open by itself", "Orders per side", "Undercut alerts",
+				"Sort flips by", "Value upgrades", "Alert sound"}) lw = Math.max(lw, w(l));
+		lw += 14;
+		switch (settingsView) {
+			case "snipe" -> {
+				double[] snipeVals = {25, 35, 50};
+				ly = onOff(p, x, ly, lw, "Sniper", cfg.sniper, v -> cfg.sniper = v);
+				ly = setting(p, x, ly, lw, "Alert at", new String[]{"25% off", "35% off", "50% off"}, pick(snipeVals, cfg.snipeMinPercent),
+						i -> cfg.snipeMinPercent = snipeVals[i]);
+				ly = setting(p, x, ly, lw, "Open by itself", new String[]{"off", "at once", "after check"},
+						!cfg.snipeAutoOpen ? 0 : cfg.snipeOpenChecked ? 2 : 1, i -> {
+							cfg.snipeAutoOpen = i > 0;
+							cfg.snipeOpenChecked = i == 2;
+						});
+				p.text(FcfPanel.fit("Opening by itself sends /viewauction without a keypress: off is the safest.", w), x, ly + 2, MUTED);
+			}
+			case "bz" -> {
+				ly = onOff(p, x, ly, lw, "Orders HUD (O)", cfg.bzHud, v -> cfg.bzHud = v);
+				String[] sizes = {"small", "medium", "large"};
+				int si = java.util.Arrays.asList(sizes).indexOf(cfg.bzHudSize);
+				ly = setting(p, x, ly, lw, "HUD size", new String[]{"small", "medium", "large"}, Math.max(0, si), i -> cfg.bzHudSize = sizes[i]);
+				int[] maxes = {3, 5, 8, 12};
+				int mi = 0;
+				for (int i = 0; i < maxes.length; i++) if (maxes[i] == cfg.bzHudMax) mi = i;
+				ly = setting(p, x, ly, lw, "Orders per side", new String[]{"3", "5", "8", "12"}, mi, i -> cfg.bzHudMax = maxes[i]);
+				int so = 0;
+				String[] sortLabels = new String[Bazaar.SORTS.length];
+				for (int i = 0; i < sortLabels.length; i++) {
+					sortLabels[i] = Bazaar.SORTS[i][1];
+					if (Bazaar.SORTS[i][0].equals(cfg.bazaarSort)) so = i;
+				}
+				ly = setting(p, x, ly, lw, "Sort flips by", sortLabels, so, i -> cfg.bazaarSort = Bazaar.SORTS[i][0]);
+				ly = onOff(p, x, ly, lw, "Fill signs", cfg.signFill, v -> cfg.signFill = v);
+				p.text(FcfPanel.fit("Bazaar tax: " + cfg.bazaarTaxPercent + "% (change it with /nef bztax)", w), x, ly + 2, MUTED);
+			}
+			case "general" -> {
+				ly = onOff(p, x, ly, lw, "FLIP button", cfg.flipButton, v -> cfg.flipButton = v);
+				ly = onOff(p, x, ly, lw, "FCF button", cfg.fcfButton, v -> cfg.fcfButton = v);
+				ly = onOff(p, x, ly, lw, "DEALS button", cfg.dealsButton, v -> cfg.dealsButton = v);
+				ly = onOff(p, x, ly, lw, "DESK button", cfg.deskButton, v -> cfg.deskButton = v);
+				ly = onOff(p, x, ly, lw, "Discord button", cfg.discordButton, v -> cfg.discordButton = v);
+				ly = setting(p, x, ly, lw, "Tooltips", new String[]{"Simple", "Pro"}, cfg.simpleMode ? 0 : 1, i -> cfg.simpleMode = i == 0);
+				ly = onOff(p, x, ly, lw, "Alert sound", cfg.alertSound, v -> cfg.alertSound = v);
+				p.text(FcfPanel.fit("Your own API key (adds your bank to your coins): /nef apikey <key>", w), x, ly + 2, MUTED);
+			}
+			default -> {
+				double[] minVals = {0, 500_000, 1_000_000, 5_000_000, 10_000_000};
+				double[] pctVals = {3, 5, 10, 20};
+				double[] holdVals = {1, 4, 8, 24};
+				ly = setting(p, x, ly, lw, "Min item value", new String[]{"any", "500k", "1M", "5M", "10M"}, pick(minVals, cfg.minItemValue),
+						i -> cfg.minItemValue = minVals[i]);
+				ly = setting(p, x, ly, lw, "Min profit", new String[]{"3%", "5%", "10%", "20%"}, pick(pctVals, cfg.minFlipProfitPercent),
+						i -> cfg.minFlipProfitPercent = pctVals[i]);
+				ly = setting(p, x, ly, lw, "Longest hold", new String[]{"1h", "4h", "8h", "24h"}, pick(holdVals, cfg.maxHoldHours),
+						i -> cfg.maxHoldHours = holdVals[i]);
+				ly = onOff(p, x, ly, lw, "Value upgrades", cfg.valueUpgrades, v -> cfg.valueUpgrades = v);
+				ly = onOff(p, x, ly, lw, "Price chart", cfg.priceChart, v -> cfg.priceChart = v);
+				ly = onOff(p, x, ly, lw, "Flip banner", cfg.showFlipBanner, v -> cfg.showFlipBanner = v);
+				ly = onOff(p, x, ly, lw, "Deal alerts", cfg.dealAlerts, v -> cfg.dealAlerts = v);
+				ly = onOff(p, x, ly, lw, "Undercut alerts", cfg.undercutAlerts, v -> cfg.undercutAlerts = v);
+				ly = onOff(p, x, ly, lw, "Suggest BIN price", cfg.listPriceFill, v -> cfg.listPriceFill = v);
+				ly = onOff(p, x, ly, lw, "Trade check", cfg.tradeCheck, v -> cfg.tradeCheck = v);
+			}
+		}
+		p.text("Saved as you click.", x, y + h - 10, McStyle.DIM);
 	}
 
 	// ================================================================== table helper
@@ -591,14 +700,17 @@ final class Desk {
 		// realised profit
 		p.text("Profit you made", x, ry, INK);
 		ry += 13;
-		Object[][] periods = {{"Today", 0}, {"Last 7 days", 6}, {"Last 30 days", 29}};
-		int colW = w / 3;
+		Object[][] periods = {{"This session", -1}, {"Today", 0}, {"Last 7 days", 6}, {"Last 30 days", 29}};
+		int colW = w / 4;
 		for (int i = 0; i < periods.length; i++) {
-			ProfitLog.Summary s = ProfitLog.summary(ProfitLog.startOfDay((int) periods[i][1]));
+			int days = (int) periods[i][1];
+			ProfitLog.Summary s = days < 0 ? ProfitLog.session() : ProfitLog.summary(ProfitLog.startOfDay(days));
 			int tx = x + i * colW;
 			slot(p, tx, ry, tx + colW - 4, ry + 26);
 			p.text((String) periods[i][0], tx + 5, ry + 4, C_GRAY);
-			p.text(signed(s.profit()) + "  (" + s.flips() + " flip" + (s.flips() == 1 ? "" : "s") + ")", tx + 5, ry + 15, s.profit() >= 0 ? C_GREEN : C_RED);
+			String sub = days < 0 ? " · " + fmt(ProfitLog.perHour(s.profit(), System.currentTimeMillis() - ProfitLog.sessionStart())) + "/h"
+					: "  (" + s.flips() + " flip" + (s.flips() == 1 ? "" : "s") + ")";
+			p.text(FcfPanel.fit(signed(s.profit()) + sub, colW - 12), tx + 5, ry + 15, s.profit() >= 0 ? C_GREEN : C_RED);
 		}
 		ry += 32;
 		p.text(FcfPanel.fit("Profit = what you sold for after tax, minus what you paid. More: /nef profit", w), x, ry, MUTED);

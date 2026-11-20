@@ -61,6 +61,9 @@ final class NefConfig {
 	int purseReportSeconds = 300;
 	boolean dealAlerts = true;        // chat alert for new underpriced BINs found by your own AH scan (or a local server)
 	double dealMinDiscountPercent = 20;
+	boolean tradeCheck = true;        // player trade menu: what each side is worth and the difference
+	boolean listPriceFill = true;     // Create BIN Auction: show a suggested price and fill it into the price sign
+	boolean undercutAlerts = true;    // chat alert when someone lists a copy as good as yours for less than your BIN
 	double minItemValue = 1_000_000;  // AH: ignore items worth less than this everywhere (flips, deals, snipes, tooltip banners, gold frames); /nef minvalue
 	double dealMinValue = 1_000_000;
 	int dealPollSeconds = 60;   // clicking an auction copies the target bid to your clipboard (you place the bid yourself)

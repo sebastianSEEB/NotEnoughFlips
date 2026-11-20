@@ -292,6 +292,37 @@ final class ProfitLog {
 				HudFormatter.GRAY));
 	}
 
+	private static volatile long sessionStart = System.currentTimeMillis();
+
+	/** You joined a server: a new session starts now. */
+	static void startSession() {
+		sessionStart = System.currentTimeMillis();
+	}
+
+	static long sessionStart() {
+		return sessionStart;
+	}
+
+	/** Realized profit since you joined. */
+	static Summary session() {
+		return summary(sessionStart);
+	}
+
+	/** Pure: profit per hour over a session of {@code ms} (at least 15 min counted, so one early flip isn't "50M/h"). */
+	static double perHour(double profit, long ms) {
+		return profit / Math.max(0.25, ms / 3_600_000.0);
+	}
+
+	/** "Session (1h 20m): +12.5M, 9.4M/h, 6 flips" for chat and panels. */
+	static String sessionLine() {
+		Summary s = session();
+		long ms = System.currentTimeMillis() - sessionStart;
+		long min = ms / 60_000;
+		String dur = min >= 60 ? (min / 60) + "h " + (min % 60) + "m" : min + "m";
+		return "Session (" + dur + "): " + (s.profit() >= 0 ? "+" : "") + HudFormatter.fmt(s.profit()) + ", "
+				+ HudFormatter.fmt(perHour(s.profit(), ms)) + "/h, " + s.flips() + " flip" + (s.flips() == 1 ? "" : "s");
+	}
+
 	/** Coins you traded (bought + sold) since `from`: {bazaar, auction house}. */
 	static double[] volume(long from) {
 		double bz = 0, ah = 0;
