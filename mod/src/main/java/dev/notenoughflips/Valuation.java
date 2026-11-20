@@ -215,8 +215,11 @@ final class Valuation {
 		double minEnch = comp.has("min_enchant_value") ? comp.get("min_enchant_value").getAsDouble() : 200_000;
 		double ench = 0;
 		for (Map.Entry<String, Integer> e : a.enchants.entrySet()) {
+			if (!paidFor(e.getKey(), e.getValue())) continue;
 			double v = price(comp, "ENCHANTMENT_" + e.getKey() + "_" + e.getValue());
-			if (v >= minEnch) ench += v;
+			// a level I-V book that isn't an ultimate only adds value when it's a pricey book-only enchant
+			boolean low = e.getValue() <= 5 && !e.getKey().toUpperCase(Locale.ROOT).startsWith("ULTIMATE_");
+			if (v >= minEnch && (!low || v >= 1_000_000)) ench += v;
 		}
 		if (ench > 0) out.add(new Part("enchants", ench * factor(comp, "enchant", 0.85)));
 		if (a.recomb) out.add(new Part("recomb", price(comp, "RECOMBOBULATOR_3000") * factor(comp, "recomb", 0.85)));
@@ -253,6 +256,22 @@ final class Valuation {
 		if (a.petSkin != null) out.add(new Part("skin", price(comp, "PET_SKIN_" + a.petSkin) * factor(comp, "pet_skin", 0.8)));
 		out.removeIf(p -> !(p.coins() > 0));
 		return out;
+	}
+
+	/** Enchants anyone can put on from the enchanting table (up to level V): buyers don't pay extra for these. */
+	static final java.util.Set<String> TABLE = java.util.Set.of("PROTECTION", "GROWTH", "SHARPNESS", "SMITE", "BANE_OF_ARTHROPODS",
+			"CRITICAL", "FIRST_STRIKE", "GIANT_KILLER", "POWER", "SNIPE", "PUNCH", "FLAME", "INFINITE_QUIVER", "PIERCING", "AIMING",
+			"CUBISM", "ENDER_SLAYER", "EXECUTE", "IMPALING", "LETHALITY", "LIFE_STEAL", "LOOTING", "LUCK", "SCAVENGER", "THUNDERLORD",
+			"VAMPIRISM", "VENOMOUS", "CLEAVE", "FIRE_ASPECT", "KNOCKBACK", "EFFICIENCY", "FORTUNE", "HARVESTING", "SILK_TOUCH",
+			"SMELTING_TOUCH", "RESPIRATION", "AQUA_AFFINITY", "DEPTH_STRIDER", "THORNS", "FEATHER_FALLING", "FIRE_PROTECTION",
+			"BLAST_PROTECTION", "PROJECTILE_PROTECTION", "REJUVENATE", "ANGLER", "BLESSING", "CASTER", "FRAIL", "LURE", "MAGNET",
+			"SPIKED_HOOK", "LUCK_OF_THE_SEA", "DRAGON_TRACER", "CHANCE", "TELEKINESIS", "TRIPLE_STRIKE", "SYPHON", "TITAN_KILLER",
+			"PROSECUTE", "MANA_STEAL", "SMARTY_PANTS", "SUGAR_RUSH", "WISDOM");
+
+	/** Whether buyers pay for this enchant on top of the item: not when it's a table enchant at a table level (I-V). */
+	static boolean paidFor(String enchant, int level) {
+		String k = enchant.toUpperCase(Locale.ROOT);
+		return k.startsWith("ULTIMATE_") || level >= 6 || !TABLE.contains(k);
 	}
 
 	private static String str(JsonObject o, String k) {
