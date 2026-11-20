@@ -33,6 +33,28 @@ final class McStyle {
 		p.text(label, x1 + (x2 - x1 - font.width(label)) / 2, y1 + (y2 - y1 - 8) / 2 + 1, sel ? BTN_SEL : BTN_TEXT);
 	}
 
+	/**
+	 * A secondary choice (filters, sort, sizes, settings): plain text, no box, so it never looks like a tab. Selected =
+	 * white with a blue underline; others muted. Returns the width it takes (text + 6 px gap).
+	 */
+	static int option(Highlight.Painter p, int x, int y, String label, boolean sel) {
+		var font = net.minecraft.client.Minecraft.getInstance().font;
+		int w = font.width(label);
+		p.text(label, x, y + 2, sel ? TEXT : MUTED);
+		if (sel) p.fill(x, y + 11, x + w, y + 12, EDGE);
+		return w + 6;
+	}
+
+	/** Width {@link #option} takes. */
+	static int optionW(String label) {
+		return net.minecraft.client.Minecraft.getInstance().font.width(label) + 6;
+	}
+
+	/** A thin divider between sections. */
+	static void divider(Highlight.Painter p, int x1, int x2, int y) {
+		p.fill(x1, y, x2, y + 1, 0x40FFFFFF);
+	}
+
 	/** One of the main toggle buttons around the inventory (FLIP, FCF, DEALS, DESK): gold frame, blue when open. */
 	static void toggle(Highlight.Painter p, int x1, int y1, int x2, int y2, String label, boolean open) {
 		p.fill(x1, y1, x2, y2, open ? EDGE : 0xF0202830);

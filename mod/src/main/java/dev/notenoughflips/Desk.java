@@ -368,10 +368,11 @@ final class Desk {
 		}
 	}
 
+	/** A sub-view / filter choice: plain underlined text (McStyle.option), so only the sidebar reads as navigation. */
 	private static int chip(Highlight.Painter p, int x, int y, String label, boolean sel, Runnable r) {
-		int cw = w(label) + 10;
-		button(p, x, y - 3, x + cw, y + 10, label, sel, r);
-		return x + cw + 3;
+		int cw = McStyle.option(p, x, y - 3, label, sel);
+		if (r != null) btn(x - 2, y - 4, x + cw - 2, y + 10, r);
+		return x + cw + 6;
 	}
 
 	// ================================================================== Home

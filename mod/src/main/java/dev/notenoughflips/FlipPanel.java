@@ -27,7 +27,7 @@ import net.minecraft.world.inventory.ChestMenu;
  * Clicking only opens an auction (/viewauction) or copies a price to your clipboard: you buy and list yourself.
  */
 final class FlipPanel {
-	private static final int BTN_W = 30, BTN_H = 14, W = 160, R2 = 20;
+	private static final int BTN_W = 30, BTN_H = 14, W = 168, R2 = 21, PAD = 6;   // PAD: inner padding of the panel
 	// inventory look (McStyle): grey container, dark text, stone buttons
 	private static final int TEXT = McStyle.TEXT, MUTED = McStyle.MUTED, DIM = McStyle.DIM,
 			GOOD = McStyle.GOOD, WARN = McStyle.WARN, BAD = McStyle.BAD, GOLD = McStyle.GOLD;
@@ -68,31 +68,37 @@ final class FlipPanel {
 		return Minecraft.getInstance().font.width(t);
 	}
 
+	/** A secondary choice (setting, filter, sort): plain text with an underline when selected (McStyle.option). */
 	private static void chip(Highlight.Painter p, int x, int y, String t, boolean on, Runnable action) {
-		int w = width(t) + 8;
-		McStyle.button(p, x, y, x + w, y + 12, t, on);
-		hits.add(new Hit(x, y, x + w, y + 12, action));
+		int w = McStyle.option(p, x, y, t, on);
+		hits.add(new Hit(x - 2, y, x + w - 2, y + 13, action));
 	}
 
 	private static int chipW(String t) {
-		return width(t) + 8;
+		return McStyle.optionW(t) - 2;
+	}
+
+	/** Small grey label in front of a row of options ("Sort", "HUD"…); returns the x where the options start. */
+	private static int optLabel(Highlight.Painter p, int x, int y, String t) {
+		p.text(t, x + PAD, y + 2, DIM);
+		return x + PAD + Math.max(width(t), width("Sort")) + 6;
 	}
 
 	/** Two-line row: name + right-aligned value, then a gray detail line. */
 	private static void row(Highlight.Painter p, int x, int y, int w, String name, String right, int rightColor, String detail,
 			Runnable action) {
 		int rw = width(right);
-		p.text(FcfPanel.fit(name, w - rw - 10), x + 4, y, TEXT);
-		p.text(right, x + w - rw - 4, y, rightColor);
-		p.text(FcfPanel.fit(detail, w - 8), x + 4, y + 9, MUTED);
+		p.text(FcfPanel.fit(name, w - rw - 2 * PAD - 4), x + PAD, y, TEXT);
+		p.text(right, x + w - rw - PAD, y, rightColor);
+		p.text(FcfPanel.fit(detail, w - 2 * PAD), x + PAD, y + 9, MUTED);
 		if (action != null) hits.add(new Hit(x, y - 1, x + w, y + R2 - 1, action));
 	}
 
 	private static void section(Highlight.Painter p, int x, int y, int w, String t, String right) {
-		p.text(t, x + 4, y, GOLD);
+		p.text(t, x + PAD, y, GOLD);
 		if (right == null || right.isEmpty()) return;
 		String r = FcfPanel.fit(right, Math.max(10, w - width(t) - 14));   // never runs into the title
-		p.text(r, x + w - width(r) - 4, y, DIM);
+		p.text(r, x + w - width(r) - PAD, y, DIM);
 	}
 
 	// ------------------------------------------------------------------ paint
@@ -125,13 +131,18 @@ final class FlipPanel {
 		if (!cfg.setupDone) {
 			y = wizard(q, x, y, w);
 		} else {
-			int tx = x + 3;
+			// the main tabs share the panel width exactly (no tab ever runs off the edge)
+			int avail = w - 2 * PAD - (TABS.length - 1), textW = 0;
+			for (String t : TABS) textW += width(t);
+			int extra = Math.max(4, (avail - textW) / TABS.length), tx = x + PAD;
 			for (int i = 0; i < TABS.length; i++) {
-				int t = i;
-				chip(q, tx, y, TABS[i], tab == i, () -> tab = t);
-				tx += chipW(TABS[i]) + 2;
+				int t = i, tw = width(TABS[i]) + extra;
+				if (i == TABS.length - 1) tw = Math.max(tw, x + w - PAD - tx);
+				McStyle.button(q, tx, y, tx + tw, y + 13, TABS[i], tab == i);
+				hits.add(new Hit(tx, y, tx + tw, y + 13, () -> tab = t));
+				tx += tw + 1;
 			}
-			y += 16;
+			y += 19;
 			int bottom = maxY - 18;
 			y = switch (tab) {
 				case 0 -> ah(q, s, x, y, w, bottom);
@@ -149,21 +160,21 @@ final class FlipPanel {
 	}
 
 	private static int wizard(Highlight.Painter p, int x, int y, int w) {
-		p.text("Quick setup (3 taps)", x + 4, y, TEXT);
+		p.text("Quick setup (3 taps)", x + PAD, y, TEXT);
 		y += 12;
-		p.text("Use per flip, at most:", x + 4, y, MUTED);
+		p.text("Use per flip, at most:", x + PAD, y, MUTED);
 		y += 10;
-		int cx = x + 4;
+		int cx = x + PAD;
 		for (int pct : new int[]{10, 25, 50}) {
 			String t = pct + "% of purse";
-			if (cx + chipW(t) > x + w - 2) { cx = x + 4; y += 14; }
+			if (cx + chipW(t) > x + w - 2) { cx = x + PAD; y += 14; }
 			chip(p, cx, y, t, Math.round(cfg.budgetPercent) == pct, () -> { cfg.budgetPercent = pct; cfg.save(); });
 			cx += chipW(t) + 2;
 		}
 		y += 16;
-		p.text("Risk:", x + 4, y, MUTED);
+		p.text("Risk:", x + PAD, y, MUTED);
 		y += 10;
-		cx = x + 4;
+		cx = x + PAD;
 		for (String r : new String[]{"safe", "normal", "bold"}) {
 			String t = Character.toUpperCase(r.charAt(0)) + r.substring(1);
 			chip(p, cx, y, t, r.equals(cfg.risk), () -> { cfg.applyRisk(r); cfg.save(); });
@@ -171,18 +182,18 @@ final class FlipPanel {
 		}
 		y += 14;
 		p.text(FcfPanel.fit(String.format(Locale.ROOT, "≥%.0f%% profit · sells ≥%.0f/day", cfg.minFlipProfitPercent, cfg.minSalesPerDay),
-				w - 8), x + 4, y, DIM);
+				w - 2 * PAD), x + PAD, y, DIM);
 		y += 12;
-		p.text("Longest wait to resell:", x + 4, y, MUTED);
+		p.text("Longest wait to resell:", x + PAD, y, MUTED);
 		y += 10;
-		cx = x + 4;
+		cx = x + PAD;
 		for (int hrs : new int[]{2, 8, 24}) {
 			String t = hrs + "h";
 			chip(p, cx, y, t, Math.round(cfg.maxHoldHours) == hrs, () -> { cfg.maxHoldHours = hrs; cfg.save(); });
 			cx += chipW(t) + 2;
 		}
 		y += 18;
-		chip(p, x + 4, y, "Done ✔", true, () -> {
+		chip(p, x + PAD, y, "Done ✔", true, () -> {
 			cfg.setupDone = true;
 			cfg.save();
 			AhScanner.poke(cfg, false);
@@ -191,9 +202,9 @@ final class FlipPanel {
 	}
 
 	private static int footer(Highlight.Painter p, int x, int y, int w) {
-		p.fill(x + 3, y, x + w - 3, y + 1, McStyle.LINE);
+		p.fill(x + PAD, y, x + w - 3, y + 1, McStyle.LINE);
 		y += 3;
-		int cx = x + 3;
+		int cx = optLabel(p, x, y, "View");
 		chip(p, cx, y, "Simple", cfg.simpleMode, () -> { cfg.simpleMode = true; cfg.save(); });
 		cx += chipW("Simple") + 1;
 		chip(p, cx, y, "Pro", !cfg.simpleMode, () -> { cfg.simpleMode = false; cfg.save(); });
@@ -242,20 +253,20 @@ final class FlipPanel {
 		y = limitRow(p, x, y, "min value", new double[]{0, 500_000, 1_000_000, 5_000_000, 10_000_000}, cfg.minItemValue,
 				v -> v == 0 ? "any" : HudFormatter.fmt(v), v -> { cfg.minItemValue = v; cfg.save(); viewAt = 0; });
 		if (!cfg.flipFeed) {
-			p.text(FcfPanel.fit("Feed is off: /nef feed on", w - 8), x + 4, y, MUTED);
+			p.text(FcfPanel.fit("Feed is off: /nef feed on", w - 2 * PAD), x + PAD, y, MUTED);
 			return y + 10;
 		}
 		if (at == 0) {
-			p.text(FcfPanel.fit(AhScanner.running() ? "First AH scan running…" : "Starting the first AH scan…", w - 8), x + 4, y, MUTED);
+			p.text(FcfPanel.fit(AhScanner.running() ? "First AH scan running…" : "Starting the first AH scan…", w - 2 * PAD), x + PAD, y, MUTED);
 			AhScanner.poke(cfg, false);
 			return y + 10;
 		}
 		List<FlipFeed.Flip> fl = view.flips();
 		if (fl.isEmpty()) {
-			p.text(FcfPanel.fit("Nothing fits your budget + risk now", w - 8), x + 4, y, MUTED);
+			p.text(FcfPanel.fit("Nothing fits your budget + risk now", w - 2 * PAD), x + PAD, y, MUTED);
 			y += 10;
 			if (view.checking() > 0) {
-				p.text(FcfPanel.fit("checking prices of " + view.checking() + " more…", w - 8), x + 4, y, DIM);
+				p.text(FcfPanel.fit("checking prices of " + view.checking() + " more…", w - 2 * PAD), x + PAD, y, DIM);
 				y += 10;
 			}
 			return y;
@@ -269,7 +280,7 @@ final class FlipPanel {
 					() -> { Holdings.intend(f.c().name(), f.c().key(), "AH flip", f.resale()); Cmd.viewAuction(uuid); });
 			y += R2;
 		}
-		p.text(FcfPanel.fit("click = open it, check the tooltip", w - 8), x + 4, y, DIM);
+		p.text(FcfPanel.fit("click = open it, check the tooltip", w - 2 * PAD), x + PAD, y, DIM);
 		return y + 10;
 	}
 
@@ -297,13 +308,13 @@ final class FlipPanel {
 			}
 			y += 2;
 		} else {
-			p.text(FcfPanel.fit("Open your Bazaar orders to track", w - 8), x + 4, y, DIM);
+			p.text(FcfPanel.fit("Open your Bazaar orders to track", w - 2 * PAD), x + PAD, y, DIM);
 			y += 11;
 		}
 		// the orders HUD (top right, also without the inventory): on/off, width, how many per side
-		int hx = x + 3;
-		chip(p, hx, y, cfg.bzHud ? "HUD on" : "HUD off", cfg.bzHud, () -> { cfg.bzHud = !cfg.bzHud; cfg.save(); });
-		hx += chipW(cfg.bzHud ? "HUD on" : "HUD off") + 2;
+		int hx = optLabel(p, x, y, "HUD");
+		chip(p, hx, y, cfg.bzHud ? "on" : "off", cfg.bzHud, () -> { cfg.bzHud = !cfg.bzHud; cfg.save(); });
+		hx += chipW(cfg.bzHud ? "on" : "off") + 6;
 		for (String[] sz : new String[][]{{"small", "S"}, {"medium", "M"}, {"large", "L"}}) {
 			final String id = sz[0];
 			chip(p, hx, y, sz[1], id.equals(cfg.bzHudSize), () -> { cfg.bzHudSize = id; cfg.bzHud = true; cfg.save(); });
@@ -316,7 +327,7 @@ final class FlipPanel {
 		}
 		y += 15;
 		// sort: profit/h (default), most profit per round, margin %, or busiest products (coins traded per hour)
-		int sx = x + 3;
+		int sx = optLabel(p, x, y, "Sort");
 		for (String[] so : Bazaar.SORTS) {
 			final String id = so[0];
 			chip(p, sx, y, so[1], id.equals(cfg.bazaarSort), () -> { cfg.bazaarSort = id; cfg.save(); });
@@ -331,7 +342,7 @@ final class FlipPanel {
 		section(p, x, y, w, "Best flips", right.trim());
 		y += 11;
 		if (list.isEmpty()) {
-			p.text(FcfPanel.fit(data.bazaarAll().isEmpty() ? "Loading the bazaar…" : "Nothing fits your budget", w - 8), x + 4, y, MUTED);
+			p.text(FcfPanel.fit(data.bazaarAll().isEmpty() ? "Loading the bazaar…" : "Nothing fits your budget", w - 2 * PAD), x + PAD, y, MUTED);
 			return y + 10;
 		}
 		for (int i = 0; i < list.size() && y + R2 <= bottom; i++) {
@@ -350,7 +361,7 @@ final class FlipPanel {
 			row(p, x, y, w, name, rt, GOOD, detail, () -> copyBazaar(f, name));
 			y += R2;
 		}
-		p.text(FcfPanel.fit("click ×3: open/name · amount · price", w - 8), x + 4, y, DIM);
+		p.text(FcfPanel.fit("click ×3: open/name · amount · price", w - 2 * PAD), x + PAD, y, DIM);
 		return y + 10;
 	}
 
@@ -444,7 +455,7 @@ final class FlipPanel {
 				- (long) FcfPanel.d(cj, "updated")) / 3_600_000L) + "h ago");
 		y += 11;
 		if (cj == null || !cj.has("flips")) {
-			p.text("Loading…", x + 4, y, MUTED);
+			p.text("Loading…", x + PAD, y, MUTED);
 			return y + 10;
 		}
 		double budget = budget();
@@ -455,7 +466,7 @@ final class FlipPanel {
 		if (overBudget) {                                          // nothing fits: show the cheapest ones anyway
 			over.sort((a, b) -> Double.compare(FcfPanel.d(a, "cost"), FcfPanel.d(b, "cost")));
 			fit = over.subList(0, Math.min(6, over.size()));
-			p.text(FcfPanel.fit("Over your " + HudFormatter.fmt(budget) + "/flip budget:", w - 8), x + 4, y, WARN);
+			p.text(FcfPanel.fit("Over your " + HudFormatter.fmt(budget) + "/flip budget:", w - 2 * PAD), x + PAD, y, WARN);
 			y += 10;
 		}
 		for (JsonObject r : fit) {
@@ -481,7 +492,7 @@ final class FlipPanel {
 					String t = (long) FcfPanel.d(g, "n") + "× " + gname;
 					String r2 = HudFormatter.fmt(FcfPanel.d(g, "unit")) + (how == null ? "" : how.startsWith("bazaar") ? " BZ" : how.startsWith("lowest") ? " AH" : " " + how);
 					p.text(FcfPanel.fit((link ? "→ " : "   ") + t, w - width(r2) - 16), x + 8, y, link ? McStyle.BLUE : TEXT);
-					p.text(r2, x + w - width(r2) - 4, y, MUTED);
+					p.text(r2, x + w - width(r2) - PAD, y, MUTED);
 					if (link) hits.add(new Hit(x, y - 1, x + w, y + 9, () -> Cmd.buyIngredient(how, gname)));
 					y += 10;
 				}
@@ -495,7 +506,7 @@ final class FlipPanel {
 				}
 			}
 		}
-		p.text(FcfPanel.fit("click a craft = what to buy (click to open)", w - 8), x + 4, y, DIM);
+		p.text(FcfPanel.fit("click a craft = what to buy (click to open)", w - 2 * PAD), x + PAD, y, DIM);
 		return y + 10;
 	}
 
@@ -531,7 +542,7 @@ final class FlipPanel {
 	private static int snipe(Highlight.Painter p, int x, int y, int w, int bottom) {
 		section(p, x, y, w, "Snipes", cfg.sniper ? "≤ " + Math.round(100 - cfg.snipeMinPercent) + "% of lowest BIN" : "off");
 		y += 12;
-		int cx = x + 3;
+		int cx = x + PAD;
 		for (int pct : new int[]{25, 35, 50}) {
 			String t = pct + "% off";
 			chip(p, cx, y, t, Math.round(cfg.snipeMinPercent) == pct, () -> { cfg.snipeMinPercent = pct; cfg.save(); });
@@ -540,9 +551,9 @@ final class FlipPanel {
 		chip(p, cx, y, cfg.sniper ? "on" : "off", cfg.sniper, () -> { cfg.sniper = !cfg.sniper; cfg.save(); });
 		y += 14;
 		// auto-open: off / at once / after the ✓ check, then its limits
-		p.text("Open by itself:", x + 4, y + 2, MUTED);
+		p.text("Open by itself:", x + PAD, y + 2, MUTED);
 		y += 11;
-		cx = x + 3;
+		cx = x + PAD;
 		String[][] modes = {{"off", "off"}, {"now", "at once"}, {"checked", "after ✓"}};
 		String mode = !cfg.snipeAutoOpen ? "off" : cfg.snipeOpenChecked ? "checked" : "now";
 		for (String[] m : modes) {
@@ -565,14 +576,14 @@ final class FlipPanel {
 			y += 2;
 		}
 		if (!Sniper.ready()) {
-			p.text(FcfPanel.fit("Waiting for the first full AH scan (⟳ below)…", w - 8), x + 4, y, DIM);
+			p.text(FcfPanel.fit("Waiting for the first full AH scan (⟳ below)…", w - 2 * PAD), x + PAD, y, DIM);
 			return y + 11;
 		}
 		List<Sniper.Alert> al = Sniper.recent();
 		java.util.Collections.reverse(al);
 		long now = System.currentTimeMillis();
 		if (al.isEmpty()) {
-			p.text(FcfPanel.fit("No alerts yet. Big gaps are rare: try 25% off.", w - 8), x + 4, y, DIM);
+			p.text(FcfPanel.fit("No alerts yet. Big gaps are rare: try 25% off.", w - 2 * PAD), x + PAD, y, DIM);
 			y += 11;
 		}
 		for (int i = 0; i < al.size() && i < 5 && y + 20 <= bottom; i++) {
@@ -597,15 +608,15 @@ final class FlipPanel {
 			Sniper.Watch wt = wl.get(i);
 			String right = HudFormatter.fmt(wt.trigger());
 			String name = Bazaar.name(wt.key(), data);
-			p.text(FcfPanel.fit(name + "  " + HudFormatter.fmt(wt.lowest()) + " ×" + wt.listed(), w - width(right) - 12), x + 4, y, TEXT);
-			p.text(right, x + w - width(right) - 4, y, GOOD);
+			p.text(FcfPanel.fit(name + "  " + HudFormatter.fmt(wt.lowest()) + " ×" + wt.listed(), w - width(right) - 12), x + PAD, y, TEXT);
+			p.text(right, x + w - width(right) - PAD, y, GOOD);
 			y += 10;
 		}
 		if (pages > 1) {
-			chip(p, x + 3, y + 1, "◀", false, () -> watchPage = Math.max(0, watchPage - 1));
+			chip(p, x + PAD, y + 1, "◀", false, () -> watchPage = Math.max(0, watchPage - 1));
 			String pg = (watchPage + 1) + "/" + pages;
-			p.text(pg, x + 3 + chipW("◀") + 4, y + 2, MUTED);
-			chip(p, x + 3 + chipW("◀") + 8 + width(pg), y + 1, "▶", false, () -> watchPage = Math.min(pages - 1, watchPage + 1));
+			p.text(pg, x + PAD + chipW("◀") + 4, y + 2, MUTED);
+			chip(p, x + PAD + chipW("◀") + 8 + width(pg), y + 1, "▶", false, () -> watchPage = Math.min(pages - 1, watchPage + 1));
 			y += 13;
 		}
 		return y;
@@ -614,8 +625,8 @@ final class FlipPanel {
 	/** One row of limit chips: label, then one chip per value (the current one selected). */
 	private static int limitRow(Highlight.Painter p, int x, int y, String label, double[] values, double current,
 			java.util.function.Function<Double, String> fmt, java.util.function.Consumer<Double> set) {
-		p.text(label, x + 4, y + 2, MUTED);
-		int cx = x + 4 + Math.max(width("profit ≥"), width(label)) + 4;
+		p.text(label, x + PAD, y + 2, MUTED);
+		int cx = x + PAD + Math.max(width("profit ≥"), width(label)) + 4;
 		for (double v : values) {
 			String t = fmt.apply(v);
 			final double val = v;
@@ -633,12 +644,12 @@ final class FlipPanel {
 		y = total(p, x, y, w, "Today", today);
 		y = total(p, x, y, w, "7 days", week);
 		if (week.best() != null) {
-			p.text(FcfPanel.fit("Best: " + week.best().item() + " +" + HudFormatter.fmt(week.best().profit()), w - 8), x + 4, y, MUTED);
+			p.text(FcfPanel.fit("Best: " + week.best().item() + " +" + HudFormatter.fmt(week.best().profit()), w - 2 * PAD), x + PAD, y, MUTED);
 			y += 11;
 		}
 		y += 2;
 		// AH flips: what you paid, what you got after fees, profit; then AH buys you haven't sold yet
-		int cx = x + 3;
+		int cx = optLabel(p, x, y, "Show");
 		for (String[] m : new String[][]{{"AH", "AH flips"}, {"ALL", "All flips"}}) {
 			final String id = m[0];
 			chip(p, cx, y, m[1], id.equals(profitView), () -> profitView = id);
@@ -649,8 +660,8 @@ final class FlipPanel {
 		List<ProfitLog.Flip> list = ProfitLog.flips(ProfitLog.startOfDay(29), ahOnly ? "AH" : null);
 		long now = System.currentTimeMillis();
 		if (list.isEmpty()) {
-			p.text(FcfPanel.fit(ahOnly ? "No AH flips yet: buy on the AH, sell it" : "No flips logged yet: buys + sells", w - 8), x + 4, y, DIM);
-			p.text(FcfPanel.fit("again, and it shows up here", w - 8), x + 4, y + 9, DIM);
+			p.text(FcfPanel.fit(ahOnly ? "No AH flips yet: buy on the AH, sell it" : "No flips logged yet: buys + sells", w - 2 * PAD), x + PAD, y, DIM);
+			p.text(FcfPanel.fit("again, and it shows up here", w - 2 * PAD), x + PAD, y + 9, DIM);
 			y += 20;
 		}
 		for (int i = 0; i < list.size() && y + R2 <= bottom - (ahOnly ? 22 : 0); i++) {
@@ -686,9 +697,9 @@ final class FlipPanel {
 
 	private static int total(Highlight.Painter p, int x, int y, int w, String label, ProfitLog.Summary s) {
 		String v = (s.profit() >= 0 ? "+" : "") + HudFormatter.fmt(s.profit());
-		p.text(label, x + 4, y, TEXT);
+		p.text(label, x + PAD, y, TEXT);
 		p.text(v, x + 46, y, s.profit() >= 0 ? GOOD : BAD);
-		p.text(s.flips() + " flips", x + w - width(s.flips() + " flips") - 4, y, MUTED);
+		p.text(s.flips() + " flips", x + w - width(s.flips() + " flips") - PAD, y, MUTED);
 		return y + 11;
 	}
 
