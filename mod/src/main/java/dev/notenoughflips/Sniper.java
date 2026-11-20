@@ -65,7 +65,7 @@ final class Sniper {
 	}
 
 	/** Cheap first look at a listing: item, identical-copy bucket, and whether it's at most half the lowest BIN. */
-	record Pre(String uuid, String key, String bucket, long count, double total, double unit, double[] ref, String name) {}
+	record Pre(String uuid, String key, String bucket, long count, double total, double unit, double[] ref, String name, Spec spec) {}
 
 	/** bucket (item#variant) → {cheapest, reference = min(2nd, median 2nd–5th), listed} from the last full scan. */
 	private static volatile Map<String, double[]> refs = Map.of();
@@ -350,8 +350,9 @@ final class Sniper {
 		String[] key = {null};
 		int[] count = {1};
 		String[] variant = {""};
+		Spec[] spec = {null};
 		try {
-			AhScanner.identify(a.get("item_bytes").getAsString(), key, count, variant);
+			AhScanner.identify(a.get("item_bytes").getAsString(), key, count, variant, spec);
 		} catch (Exception e) {
 			return null;
 		}
@@ -365,7 +366,7 @@ final class Sniper {
 		double need = Math.max(0, Math.min(0.95, cfg.snipeMinPercent / 100.0));
 		if (unit > r[0] * (1 - need)) return null;                    // e.g. 50 % → at most half the lowest BIN
 		String name = a.has("item_name") ? a.get("item_name").getAsString().replaceAll("§.", "") : k;
-		return new Pre(a.get("uuid").getAsString(), k, bucket, n, total, unit, r, name);
+		return new Pre(a.get("uuid").getAsString(), k, bucket, n, total, unit, r, name, n == 1 ? spec[0] : null);
 	}
 
 	/** An Alert ("ok"), PENDING (history loading), or a String reason why it's not a buy. */
@@ -386,6 +387,8 @@ final class Sniper {
 		// the "lowest BIN" itself can be the manipulation (cheap copies bought out, the rest relisted high)
 		if (r[0] > Math.min(fair, floor) * 1.5) return "the lowest BIN is inflated vs real sales (" + HudFormatter.fmt(Math.min(fair, floor)) + ")";
 		double resale = Math.min(Market.undercut(ref), Math.min(fair, Market.undercut(floor)));
+		double cov = coverPrice(p);
+		if (cov > 0) resale = Math.min(resale, Market.undercut(cov));     // a copy with the same or better upgrades is cheaper
 		double profit = Verdict.netAfterFees(resale * p.count()) - p.total();
 		double pct = profit / p.total();
 		if (profit < cfg.minFlipProfitCoins || pct < 0.05) return "too little profit after fees at real sale prices";
@@ -399,10 +402,19 @@ final class Sniper {
 
 	/** The instant alert while history loads: resale just under the next copies, still has to clear the profit bar. */
 	private static Alert provisional(Pre p, NefConfig cfg) {
-		double resale = Market.undercut(Math.min(p.ref()[0], p.ref()[1])) * p.count();
+		double one = Math.min(p.ref()[0], p.ref()[1]);
+		double cov = coverPrice(p);
+		if (cov > 0) one = Math.min(one, cov);
+		double resale = Market.undercut(one) * p.count();
 		double profit = Verdict.netAfterFees(resale) - p.total();
 		if (profit < cfg.minFlipProfitCoins || profit / p.total() < 0.05) return null;
 		return new Alert(p.uuid(), p.name(), p.key(), p.count(), p.total(), resale, profit, profit / p.total(), "checking", System.currentTimeMillis());
+	}
+
+	/** Cheapest other BIN of a copy with the same or better upgrades (0 = none / unknown). */
+	private static double coverPrice(Pre p) {
+		double[] c = p.spec() == null ? null : MarketBook.cover(p.key(), p.spec(), p.unit());
+		return c == null ? 0 : c[0];
 	}
 
 	private static volatile long autoOpenedAt;

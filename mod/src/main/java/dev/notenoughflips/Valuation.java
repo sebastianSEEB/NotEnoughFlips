@@ -43,7 +43,8 @@ final class Valuation {
 		int hpb, stars, aow;
 		final List<String> gems = new ArrayList<>();
 		final Map<String, Integer> attributes = new LinkedHashMap<>();
-		final java.util.Set<String> extras = new java.util.TreeSet<>();   // skin, dye, scrolls… present on this copy
+		final java.util.Set<String> extras = new java.util.TreeSet<>();
+		final Map<String, Integer> counters = new LinkedHashMap<>();       // coins collected, kills… (Spec.COUNTERS)   // skin, dye, scrolls… present on this copy
 		boolean pet;
 		double petXp;
 		String petHeld, petSkin, petTier;
@@ -97,6 +98,7 @@ final class Valuation {
 		for (String k : at.keySet()) a.attributes.put(k, at.getIntOr(k, 0));
 		java.util.Set<String> keys = t.keySet();
 		for (String k : Spec.EXTRA_KEYS) if (keys.contains(k)) a.extras.add(k);
+		for (String k : Spec.COUNTERS) if (keys.contains(k)) a.counters.put(k, Spec.clampInt(t.getDoubleOr(k, 0)));
 		CompoundTag gems = t.getCompoundOrEmpty("gems");
 		for (String slot : gems.keySet()) {
 			if (slot.equals("unlocked_slots") || slot.endsWith("_gem")) continue;
@@ -126,6 +128,46 @@ final class Valuation {
 		if (m.find()) a.petLevel = Integer.parseInt(m.group(1));
 		a.rarity = rarityFromLore(stack);
 		return a;
+	}
+
+	/**
+	 * The same attributes from an AH listing's raw ExtraAttributes (AhScanner's NBT reader), for valuing scan results
+	 * like a tooltip would. No rarity / pet level (not in the NBT); pets are skipped by the callers.
+	 */
+	static Attrs attrsOf(Map<?, ?> ea) {
+		if (ea == null || !(ea.get("id") instanceof String id) || id.isEmpty()) return null;
+		Attrs a = new Attrs();
+		a.itemId = id;
+		if (ea.get("enchantments") instanceof Map<?, ?> en)
+			for (Map.Entry<?, ?> e : en.entrySet()) a.enchants.put(e.getKey().toString().toUpperCase(Locale.ROOT), num(e.getValue()));
+		a.recomb = num(ea.get("rarity_upgrades")) > 0;
+		a.hpb = num(ea.get("hot_potato_count"));
+		a.stars = num(ea.get("upgrade_level"));
+		if (a.stars == 0) a.stars = num(ea.get("dungeon_item_level"));
+		a.aow = num(ea.get("art_of_war_count"));
+		if (ea.get("attributes") instanceof Map<?, ?> at)
+			for (Map.Entry<?, ?> e : at.entrySet()) a.attributes.put(e.getKey().toString(), num(e.getValue()));
+		if (ea.get("gems") instanceof Map<?, ?> gems) {
+			for (Map.Entry<?, ?> e : gems.entrySet()) {
+				String slot = e.getKey().toString();
+				if (slot.equals("unlocked_slots") || slot.endsWith("_gem")) continue;
+				Object v = e.getValue();
+				String q = v instanceof Map<?, ?> m && m.get("quality") != null ? m.get("quality").toString() : v == null ? "" : v.toString();
+				if (q.isEmpty()) continue;
+				int us = slot.lastIndexOf('_');
+				String base = us > 0 ? slot.substring(0, us) : slot;
+				Object g = gems.get(slot + "_gem");
+				String type = GEM_SLOT_TYPES.contains(base) ? base : g == null ? "" : g.toString();
+				if (!type.isEmpty()) a.gems.add(q.toUpperCase(Locale.ROOT) + "_" + type.toUpperCase(Locale.ROOT) + "_GEM");
+			}
+		}
+		for (String k : Spec.EXTRA_KEYS) if (ea.get(k) != null) a.extras.add(k);
+		for (String k : Spec.COUNTERS) if (ea.get(k) instanceof Number n) a.counters.put(k, Spec.clampInt(n.doubleValue()));
+		return a;
+	}
+
+	private static int num(Object o) {
+		return o instanceof Number n ? n.intValue() : 0;
 	}
 
 	/** Shown rarity: the last lore line that starts with a rarity word ("LEGENDARY SWORD", "a MYTHIC DUNGEON BOW a"). */

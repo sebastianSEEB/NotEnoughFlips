@@ -394,6 +394,11 @@ final class AhScanner {
 
 	/** Same, plus spec[0] = this copy's upgrades for "at least as upgraded" comparisons (null for pets / books). */
 	static void identify(String b64, String[] key, int[] count, String[] variant, Spec[] spec) throws IOException {
+		identify(b64, key, count, variant, spec, null);
+	}
+
+	/** Same, plus attrs[0] = the upgrades in the tooltip valuation's form (null for pets / books). */
+	static void identify(String b64, String[] key, int[] count, String[] variant, Spec[] spec, Valuation.Attrs[] attrs) throws IOException {
 		byte[] raw = Base64.getDecoder().decode(b64);
 		Object root;
 		try (DataInputStream in = new DataInputStream(new GZIPInputStream(new ByteArrayInputStream(raw)))) {
@@ -410,6 +415,7 @@ final class AhScanner {
 		key[0] = id;
 		if (variant != null) variant[0] = variant(ea);
 		if (spec != null && !id.equals("PET") && !id.equals("ENCHANTED_BOOK")) spec[0] = Spec.of(ea);
+		if (attrs != null && !id.equals("PET") && !id.equals("ENCHANTED_BOOK")) attrs[0] = Valuation.attrsOf(ea);
 		if (id.equals("ENCHANTED_BOOK") && ea.get("enchantments") instanceof Map<?, ?> en && en.size() == 1) {
 			Map.Entry<?, ?> e = en.entrySet().iterator().next();
 			key[0] = "ENCHANTMENT_" + e.getKey().toString().toUpperCase(Locale.ROOT) + "_" + ((Number) e.getValue()).intValue();

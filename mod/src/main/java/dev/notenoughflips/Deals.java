@@ -56,11 +56,26 @@ final class Deals {
 			if (week == null) continue;                               // no sales history loaded yet: can't check it
 			com.google.gson.JsonObject doc = NefClient.docFor(c.key(), false);
 			if (doc != null && Market.hasSevereFlag(doc)) continue;   // manipulated
+			if (doc == null && c.attrs() != null && c.attrs().hasUpgrades()) continue;   // upgraded copy we can't value yet
 			double sold = 0, from = now - 86_400_000L;
 			for (double[] q : week) if (q[0] >= from) sold += q[4];
 			if (sold < Math.max(1, cfg.snipeMinSalesPerDay)) continue;  // barely sells: you'd be stuck holding it
 			double ceiling = Valuation.ceiling(week);
 			double fair = ceiling > 0 ? Math.min(c.ref(), ceiling) : c.ref();
+			// "identical" copies leave out small upgrades: if any copy with the same or better upgrades is listed for
+			// less, that's the price you'd have to beat when you resell
+			double[] cov = MarketBook.cover(c.key(), c.spec(), c.price());
+			if (cov != null && cov[0] > 0) fair = Math.min(fair, cov[0]);
+			// and never above what the tooltip says this copy is worth (clean price + upgrades, same caps), so a deal
+			// here always agrees with the tooltip when you open it
+			if (doc != null && c.attrs() != null) {
+				try {
+					Valuation.Estimate est = Valuation.estimate(doc, c.key(), c.attrs(), c.price());
+					if (est != null && est.value() > 0) fair = Math.min(fair, est.value());
+				} catch (RuntimeException ignored) {
+					// no estimate: the checks above still apply
+				}
+			}
 			double profit = Verdict.netAfterFees(Market.undercut(fair)) - c.price();
 			double discount = 1 - c.price() / fair;
 			if (profit <= 0 || discount * 100 < cfg.dealMinDiscountPercent || fair < cfg.dealMinValue) continue;

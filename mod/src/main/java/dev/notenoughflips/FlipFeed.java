@@ -28,7 +28,7 @@ import com.google.gson.JsonObject;
  * too much to compare listings). Always check the auction's own tooltip before buying: it values that exact copy.
  */
 final class FlipFeed {
-	record Candidate(String key, String variant, String name, String uuid, double price, double ref, int listed, long scanAt) {}
+	record Candidate(String key, String variant, String name, String uuid, double price, double ref, int listed, long scanAt, Spec spec, Valuation.Attrs attrs) {}
 
 	record Flip(Candidate c, double resale, double net, double profit, double pct, Market.Liquidity liq, double floor,
 			double forecast) {}
@@ -41,9 +41,15 @@ final class FlipFeed {
 		final double[] p = new double[KEEP];
 		final String[] u = new String[KEEP];
 		final String[] names = new String[KEEP];
+		final Spec[] specs = new Spec[KEEP];
+		final Valuation.Attrs[] attrs = new Valuation.Attrs[KEEP];
 		int n, listed;
 
 		void add(double price, String uuid, String name) {
+			add(price, uuid, name, null, null);
+		}
+
+		void add(double price, String uuid, String name, Spec spec, Valuation.Attrs at) {
 			listed++;
 			if (n == KEEP && price >= p[KEEP - 1]) return;
 			int i = n < KEEP ? n++ : KEEP - 1;
@@ -51,11 +57,15 @@ final class FlipFeed {
 				p[i] = p[i - 1];
 				u[i] = u[i - 1];
 				names[i] = names[i - 1];
+				specs[i] = specs[i - 1];
+				attrs[i] = attrs[i - 1];
 				i--;
 			}
 			p[i] = price;
 			u[i] = uuid;
 			names[i] = name;
+			specs[i] = spec;
+			attrs[i] = at;
 		}
 	}
 
@@ -97,8 +107,9 @@ final class FlipFeed {
 		int[] count = {1};
 		String[] variant = {""};
 		Spec[] spec = {null};
+		Valuation.Attrs[] attrs = {null};
 		try {
-			AhScanner.identify(a.get("item_bytes").getAsString(), key, count, variant, spec);
+			AhScanner.identify(a.get("item_bytes").getAsString(), key, count, variant, spec, attrs);
 		} catch (Exception e) {
 			return;
 		}
@@ -112,7 +123,7 @@ final class FlipFeed {
 		String name = a.has("item_name") ? a.get("item_name").getAsString() : k;
 		// only identical copies are compared: a plain one vs a starred/recombed/enchanted one is not a "gap"
 		String v = variant[0] == null ? "" : variant[0];
-		building.computeIfAbsent(v.isEmpty() ? k : k + "#" + v, x -> new Bucket()).add(unit, a.get("uuid").getAsString(), name);
+		building.computeIfAbsent(v.isEmpty() ? k : k + "#" + v, x -> new Bucket()).add(unit, a.get("uuid").getAsString(), name, spec[0], count[0] <= 1 ? attrs[0] : null);
 	}
 
 	/** End of a scan: rank the gaps and start fetching prices for the best ones. */
@@ -161,7 +172,7 @@ final class FlipFeed {
 		for (int i = 1; i < Math.min(b.n, 5); i++) next.add(b.p[i]);
 		double ref = Math.min(b.p[1], Market.median(next));
 		if (b.p[0] >= ref * 0.97) return null;
-		Candidate c = new Candidate(key, variant, b.names[0], b.u[0], b.p[0], ref, b.listed, ts);
+		Candidate c = new Candidate(key, variant, b.names[0], b.u[0], b.p[0], ref, b.listed, ts, b.specs[0], b.attrs[0]);
 		double raw = rawProfit(c);
 		return raw > 0 && raw / c.price() >= 0.02 ? c : null;
 	}

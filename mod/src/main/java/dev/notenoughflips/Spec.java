@@ -21,6 +21,15 @@ record Spec(int stars, boolean recomb, int hpb, List<Integer> gems, Map<String, 
 			"talisman_enrichment", "mana_disintegrator_count", "polarvoid", "wood_singularity_count", "drill_part_engine",
 			"drill_part_fuel_tank", "drill_part_upgrade_module", "rod_part", "line", "hook", "sinker", "boosters"};
 
+	/** Counters stored on the item that drive its price (coins collected, kills, crops farmed, charge…): more is worth more. */
+	static final String[] COUNTERS = {"collected_coins", "farmed_cultivating", "compact_blocks", "champion_combat_xp", "expertise_kills",
+			"hecatomb_s_runs", "thunder_charge", "mined_crops", "toxophilite_combat_xp", "eman_kills", "stats_book", "blocks_walked",
+			"bottle_of_jyrre_seconds", "raider_kills", "zombie_kills", "sword_kills", "spider_kills", "dungeon_paper_kills"};
+
+	static int clampInt(double v) {
+		return v <= 0 ? 0 : v >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) v;
+	}
+
 	/** Gem quality as a number (rough 1 … perfect 5). */
 	static int quality(String q) {
 		if (q == null) return 0;
@@ -62,6 +71,7 @@ record Spec(int stars, boolean recomb, int hpb, List<Integer> gems, Map<String, 
 				if (r > 0) gems.add(r);
 			}
 		}
+		for (String k : COUNTERS) if (ea.get(k) instanceof Number n && n.doubleValue() > 0) big.put("num:" + k, clampInt(n.doubleValue()));
 		TreeSet<String> extras = new TreeSet<>();
 		for (String k : EXTRA_KEYS) if (ea.get(k) != null) extras.add(k);
 		return make(stars, num(ea.get("rarity_upgrades")) > 0, num(ea.get("hot_potato_count")), gems, big, extras);
@@ -75,6 +85,7 @@ record Spec(int stars, boolean recomb, int hpb, List<Integer> gems, Map<String, 
 			if (bigEnchant(k, e.getValue())) big.put(k, e.getValue());
 		}
 		for (Map.Entry<String, Integer> e : a.attributes.entrySet()) big.put("attr:" + e.getKey().toLowerCase(Locale.ROOT), e.getValue());
+		for (Map.Entry<String, Integer> e : a.counters.entrySet()) if (e.getValue() > 0) big.put("num:" + e.getKey(), e.getValue());
 		List<Integer> gems = new ArrayList<>();
 		for (String g : a.gems) {
 			int r = quality(g);
