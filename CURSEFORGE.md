@@ -106,8 +106,17 @@ No. It never sends purchases, bids or clicks. The most it does is open an auctio
 **Where does the data come from?**
 The public Hypixel API, SkyCofl price history, and an open data site that is rebuilt every hour from those APIs. Everything else is worked out on your own PC: the mod's own auction house scan gives the lowest BINs, upgrade prices and cheap-BIN deals, and auction forecasts are calculated locally. Your trades, profit, coins history and watch list are stored per Minecraft account in your `.minecraft/config` folder, and nothing about you is sent anywhere.
 
+**Can I get banned for using it?**
+The risk is low, but it isn't zero, and nobody can promise otherwise. Hypixel's own rules say every mod is used at your own risk, even the ones they list as examples, and that a mod that doesn't clearly fit an allowed category should be treated as not allowed. Not Enough Flips was built to stay on the safe side of that line:
+
+- It never buys, bids, clicks or confirms anything. Every purchase is your own click.
+- It doesn't change what your game sends to the server. Commands such as `/viewauction` or `/bz` are only sent when you click a link or button.
+- Prices come from public APIs, not from the server, so the mod has no hidden view of the auction house.
+
+The one setting that sends a command without a click is the sniper's "Open by itself" option. It is off by default, because opening an auction without a keypress could look like a macro. Leave it off if you want the lowest risk. Hypixel's rules can change, so check their Allowed Modifications page now and then.
+
 **Why does an item say NO RELIABLE PRICE?**
-Its recent sales are spread so widely that any average would be misleading.
+Its recent sales are spread so widely that any average would be misleading (usually copies with very different upgrades, or coin transfers), and no copy with the same upgrades is listed to compare with. The mod then shows no value or flip numbers at all.
 
 **Why are the forecasts empty?**
 A product needs about 12 hours of hourly history before it gets a forecast. They appear on their own.
@@ -118,4 +127,4 @@ The mod reads public market data and displays it. Using any mod on a server is a
 
 ---
 
-<sub>Open source (MIT with credit): [GitHub](https://github.com/sebastianSEEB/NotEnoughFlips) · [Report a bug](https://github.com/sebastianSEEB/NotEnoughFlips/issues) · Not affiliated with Hypixel, Mojang or Microsoft.</sub>
+<sub>Open source (MIT with credit): [GitHub](https://github.com/sebastianSEEB/NotEnoughFlips) · [Discord](https://discord.gg/RMK8cHmWUD) · [Report a bug](https://github.com/sebastianSEEB/NotEnoughFlips/issues) · Not affiliated with Hypixel, Mojang or Microsoft.</sub>

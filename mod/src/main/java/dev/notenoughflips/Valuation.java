@@ -42,6 +42,8 @@ final class Valuation {
 		boolean recomb;
 		int hpb, stars, aow;
 		final List<String> gems = new ArrayList<>();
+		final Map<String, Integer> attributes = new LinkedHashMap<>();
+		final java.util.Set<String> extras = new java.util.TreeSet<>();   // skin, dye, scrolls… present on this copy
 		boolean pet;
 		double petXp;
 		String petHeld, petSkin, petTier;
@@ -55,7 +57,12 @@ final class Valuation {
 
 	record Part(String label, double coins) {}
 
-	record Estimate(double value, double base, List<Part> parts, Attrs attrs, String modelType, int nSales, double petFraction) {
+	/**
+	 * cover = cheapest other BIN of a copy at least as upgraded as this one (0 = none listed / unknown),
+	 * coverListed = how many such copies are listed.
+	 */
+	record Estimate(double value, double base, List<Part> parts, Attrs attrs, String modelType, int nSales, double petFraction,
+			double cover, int coverListed) {
 		double extras() {
 			return value - base;
 		}
@@ -86,6 +93,10 @@ final class Valuation {
 		a.stars = t.getIntOr("upgrade_level", 0);
 		if (a.stars == 0) a.stars = t.getIntOr("dungeon_item_level", 0);
 		a.aow = t.getIntOr("art_of_war_count", 0);
+		CompoundTag at = t.getCompoundOrEmpty("attributes");
+		for (String k : at.keySet()) a.attributes.put(k, at.getIntOr(k, 0));
+		java.util.Set<String> keys = t.keySet();
+		for (String k : Spec.EXTRA_KEYS) if (keys.contains(k)) a.extras.add(k);
 		CompoundTag gems = t.getCompoundOrEmpty("gems");
 		for (String slot : gems.keySet()) {
 			if (slot.equals("unlocked_slots") || slot.endsWith("_gem")) continue;
@@ -227,6 +238,11 @@ final class Valuation {
 
 	/** Estimate for this copy, or null when there is no fitted model or no component prices yet. */
 	static Estimate estimate(JsonObject doc, String key, Attrs a) {
+		return estimate(doc, key, a, null);
+	}
+
+	/** @param listedUnit price (per item) of the listing being looked at, so it isn't compared with itself; null = not a listing */
+	static Estimate estimate(JsonObject doc, String key, Attrs a, Double listedUnit) {
 		if (a == null || data == null) return null;
 		JsonObject model = HudFormatter.obj(doc, "market", "model");
 		if (model == null && !a.pet) model = MarketBook.model(key);       // plain-copy price from your own AH scan
@@ -247,6 +263,10 @@ final class Valuation {
 			Double b = HudFormatter.num(model, "base");
 			if (b == null) return null;
 			base = b;
+			// a plain copy can't be worth more than the cheapest copy of any kind (one odd plain listing at 20M of a
+			// 50k bow is not the plain price)
+			MarketBook.Item book = MarketBook.get(key);
+			if (book != null && book.lowest() > 0 && book.lowest() < base) base = book.lowest();
 			parts.add(new Part("clean", base));
 		} else {
 			return null;
@@ -261,7 +281,19 @@ final class Valuation {
 			parts.add(new Part("but copies sell for at most about", ceiling - total));
 			total = Math.max(base, ceiling);
 		}
-		return new Estimate(total, base, parts, a, type, ns == null ? 0 : ns.intValue(), frac);
+		// hard upper bound: a copy at least as upgraded in every way is listed for less → nobody pays more for this one
+		double cover = 0;
+		int coverN = 0;
+		if (!a.pet) {
+			double[] c = MarketBook.cover(key, Spec.of(a), listedUnit);
+			if (c != null) { cover = c[0]; coverN = (int) c[1]; }
+			if (cover > 0 && total > cover) {
+				parts.add(new Part("but a copy with the same or better upgrades is listed for", cover - total));
+				total = cover;
+				if (base > total) base = total;
+			}
+		}
+		return new Estimate(total, base, parts, a, type, ns == null ? 0 : ns.intValue(), frac, cover, coverN);
 	}
 
 	/**
@@ -283,13 +315,15 @@ final class Valuation {
 	static List<Component> lines(Estimate e) {
 		List<Component> out = new ArrayList<>();
 		StringBuilder sb = new StringBuilder();
-		boolean capped = false;
+		String capped = null;
 		for (int i = 0; i < e.parts().size(); i++) {
 			Part p = e.parts().get(i);
-			if (p.coins() < 0) { capped = true; continue; }        // the "sells for at most" cap, shown at the end
+			if (p.coins() < 0) { capped = p.label(); continue; }   // a cap, shown at the end
 			sb.append(i == 0 ? "" : " + ").append(p.label()).append(' ').append(HudFormatter.fmt(p.coins()));
 		}
-		if (capped) sb.append(", capped at what copies really sell for");
+		if (capped != null && capped.startsWith("but a copy"))
+			sb.append(", capped: a copy with the same or better upgrades is listed for ").append(HudFormatter.fmt(e.cover()));
+		else if (capped != null) sb.append(", capped at what copies really sell for");
 		out.add(HudFormatter.line("    this copy ≈ ", HudFormatter.GRAY, HudFormatter.fmt(e.value()), HudFormatter.WHITE,
 				" = " + sb, HudFormatter.DARK));
 		Attrs a = e.attrs();

@@ -13,6 +13,8 @@ import net.minecraft.world.inventory.ChestMenu;
  * Otherwise uses the vanilla layout (inventory 176×166, chest 176×(114 + rows×18), centred).
  */
 final class GuiPos {
+	static volatile int mouseX = -1, mouseY = -1;   // last mouse position in GUI coordinates (set while a menu renders)
+
 	private static final String[][] NAMES = {
 			{"leftPos", "field_2776"}, {"topPos", "field_2800"}, {"imageWidth", "field_2792"}, {"imageHeight", "field_2779"}};
 	private static Field[] fields;

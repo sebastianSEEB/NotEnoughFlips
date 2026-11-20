@@ -58,7 +58,7 @@ final class Guard {
 		Double fair = Verdict.fair(doc);
 		Valuation.Estimate est = null;
 		try {
-			est = Valuation.estimate(doc, key, Valuation.parse(st));
+			est = Valuation.estimate(doc, key, Valuation.parse(st), listing.price());
 		} catch (RuntimeException ignored) {
 			// no estimate
 		}

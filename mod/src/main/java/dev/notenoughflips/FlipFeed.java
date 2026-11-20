@@ -96,8 +96,9 @@ final class FlipFeed {
 		String[] key = {null};
 		int[] count = {1};
 		String[] variant = {""};
+		Spec[] spec = {null};
 		try {
-			AhScanner.identify(a.get("item_bytes").getAsString(), key, count, variant);
+			AhScanner.identify(a.get("item_bytes").getAsString(), key, count, variant, spec);
 		} catch (Exception e) {
 			return;
 		}
@@ -106,6 +107,7 @@ final class FlipFeed {
 		double unit = a.get("starting_bid").getAsDouble() / Math.max(1, count[0]);
 		if (unit <= 0) return;
 		MarketBook.observe(k, unit, variant[0] == null || variant[0].isEmpty());   // lowest + plain price, kept on your PC
+		if (count[0] <= 1) MarketBook.observeSpec(k, unit, spec[0]);               // for "a copy at least as upgraded is listed for X"
 		if (!feed || k == null || k.startsWith("PET") || k.equals("ENCHANTED_BOOK")) return;
 		String name = a.has("item_name") ? a.get("item_name").getAsString() : k;
 		// only identical copies are compared: a plain one vs a starred/recombed/enchanted one is not a "gap"

@@ -30,6 +30,9 @@ final class MarketBook {
 	private static volatile long updated;
 	private static Map<String, double[]> building = new HashMap<>();   // key → [lowest, listed, plain prices… (KEEP)]
 	private static boolean loaded;
+	// key → copy spec → {cheapest 3 BINs…, listed}: for "a copy at least as upgraded is listed for X" (memory only)
+	private static volatile Map<String, Map<Spec, double[]>> specs = Map.of();
+	private static Map<String, Map<Spec, double[]>> buildingSpecs = new HashMap<>();
 
 	private MarketBook() {}
 
@@ -56,6 +59,7 @@ final class MarketBook {
 	// ------------------------------------------------------------------ scan thread
 	static synchronized void begin() {
 		building = new HashMap<>();
+		buildingSpecs = new HashMap<>();
 	}
 
 	/** One BIN from the scan: unit price, and whether this copy is plain (no stars, recomb, big enchants…). */
@@ -78,7 +82,46 @@ final class MarketBook {
 		b[i] = unit;
 	}
 
+	/** One BIN from the scan with its upgrades (non-pets). */
+	static synchronized void observeSpec(String key, double unit, Spec spec) {
+		if (key == null || spec == null || unit <= 0) return;
+		double[] b = buildingSpecs.computeIfAbsent(key, k -> new HashMap<>())
+				.computeIfAbsent(spec, k -> new double[]{Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE, 0});
+		b[3]++;
+		if (unit >= b[2]) return;
+		if (unit < b[0]) { b[2] = b[1]; b[1] = b[0]; b[0] = unit; }
+		else if (unit < b[1]) { b[2] = b[1]; b[1] = unit; }
+		else b[2] = unit;
+	}
+
+	/**
+	 * Cheapest BIN of a copy at least as upgraded as {@code mine} (see {@link Spec#covers}), and how many such copies
+	 * are listed: {price, listed}, or null when none / no scan yet. {@code exclude} = the price of the listing being
+	 * looked at, so it isn't compared with itself (one copy at that price is skipped).
+	 */
+	static double[] cover(String key, Spec mine, Double exclude) {
+		Map<Spec, double[]> m = key == null || mine == null ? null : specs.get(key);
+		if (m == null) return null;
+		List<Double> prices = new ArrayList<>();
+		int listed = 0;
+		for (Map.Entry<Spec, double[]> e : m.entrySet()) {
+			if (!e.getKey().covers(mine)) continue;
+			double[] b = e.getValue();
+			listed += (int) b[3];
+			for (int i = 0; i < 3; i++) if (b[i] < Double.MAX_VALUE) prices.add(b[i]);
+		}
+		prices.sort(Double::compare);
+		if (exclude != null) {
+			for (int i = 0; i < prices.size(); i++) {
+				if (Math.abs(prices.get(i) - exclude) <= Math.max(1, exclude * 0.0005)) { prices.remove(i); listed--; break; }
+			}
+		}
+		return prices.isEmpty() ? null : new double[]{prices.get(0), Math.max(1, listed)};
+	}
+
 	static synchronized void finish(long ts) {
+		if (!buildingSpecs.isEmpty()) specs = buildingSpecs;
+		buildingSpecs = new HashMap<>();
 		Map<String, Item> m = new HashMap<>();
 		for (Map.Entry<String, double[]> e : building.entrySet()) {
 			double[] b = e.getValue();
@@ -144,7 +187,7 @@ final class MarketBook {
 		if (it == null || it.clean() <= 0) return null;
 		JsonObject m = new JsonObject();
 		m.addProperty("type", "item");
-		m.addProperty("base", it.clean());
+		m.addProperty("base", it.lowest() > 0 ? Math.min(it.clean(), it.lowest()) : it.clean());
 		m.addProperty("n_sales", it.listed());
 		m.addProperty("source", "your AH scan");
 		return m;

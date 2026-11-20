@@ -224,7 +224,7 @@ final class Highlight {
 			if (dj == null) return new Cached(id, now);
 			boolean manip = Market.hasSevereFlag(dj);
 			if (manip) return new Cached(id, now, true);                 // never a flip border on a manipulated item
-			Valuation.Estimate est = pet == null && attrs != null ? Valuation.estimate(dj, key, attrs) : null;
+			Valuation.Estimate est = pet == null && attrs != null ? Valuation.estimate(dj, key, attrs, listing.price()) : null;
 			Verdict.Result r = Verdict.evaluate(dj, listing, null, cfg, est);
 			if (r.banner() == null || r.profit() == null) return new Cached(id, now);   // not profitable / not liquid
 			Double fair = est != null ? Double.valueOf(est.value()) : Verdict.fair(dj);

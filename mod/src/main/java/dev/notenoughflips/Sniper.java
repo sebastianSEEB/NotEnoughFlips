@@ -252,15 +252,14 @@ final class Sniper {
 			if (listedAt.size() > 500) listedAt.clear();
 		}
 		Object v = evaluate(pre, cfg);
-		if (v instanceof Alert al) fire(al);
-		else if (v == PENDING) {
+		if (v == PENDING) {
 			Alert prov = provisional(pre, cfg);
 			if (prov == null) return;
 			fire(prov);
 			synchronized (pending) {
 				pending.add(new Object[]{pre, System.currentTimeMillis()});
 			}
-		}
+		} else if (v instanceof Alert al) fire(al);
 	}
 
 	/** Re-check alerts that went out as "checking…" (no history within 30 s = ✗). */
@@ -409,6 +408,8 @@ final class Sniper {
 	private static volatile long autoOpenedAt;
 
 	private static void fire(Alert al) {
+		// never post an empty alert (the "history loading" placeholder, or nothing to gain)
+		if (al == null || al == PENDING || al.uuid().isEmpty() || !(al.price() > 0) || !(al.profit() > 0)) return;
 		synchronized (Sniper.class) {
 			alerts.add(al);
 			if (alerts.size() > 20) alerts.remove(0);

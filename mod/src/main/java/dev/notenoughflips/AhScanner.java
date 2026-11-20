@@ -389,6 +389,11 @@ final class AhScanner {
 	 * attributes, skin/dye, scrolls). Two listings are only comparable when their variants match.
 	 */
 	static void identify(String b64, String[] key, int[] count, String[] variant) throws IOException {
+		identify(b64, key, count, variant, null);
+	}
+
+	/** Same, plus spec[0] = this copy's upgrades for "at least as upgraded" comparisons (null for pets / books). */
+	static void identify(String b64, String[] key, int[] count, String[] variant, Spec[] spec) throws IOException {
 		byte[] raw = Base64.getDecoder().decode(b64);
 		Object root;
 		try (DataInputStream in = new DataInputStream(new GZIPInputStream(new ByteArrayInputStream(raw)))) {
@@ -404,6 +409,7 @@ final class AhScanner {
 		if (!(ea.get("id") instanceof String id) || id.isEmpty()) return;
 		key[0] = id;
 		if (variant != null) variant[0] = variant(ea);
+		if (spec != null && !id.equals("PET") && !id.equals("ENCHANTED_BOOK")) spec[0] = Spec.of(ea);
 		if (id.equals("ENCHANTED_BOOK") && ea.get("enchantments") instanceof Map<?, ?> en && en.size() == 1) {
 			Map.Entry<?, ?> e = en.entrySet().iterator().next();
 			key[0] = "ENCHANTMENT_" + e.getKey().toString().toUpperCase(Locale.ROOT) + "_" + ((Number) e.getValue()).intValue();

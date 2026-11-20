@@ -51,6 +51,8 @@ final class NefConfig {
 	int bzHudMax = 5;                 // orders shown per side (buy | sell)
 	String bzHudSize = "medium";      // small | medium | large (width)
 	boolean dealsButton = true;        // "DEALS" button above your inventory: /nef deals as a clickable list on the left
+	String bazaarSort = "hour";       // FLIP → Bazaar → Best flips order: hour (profit/h), profit, pct (margin %), volume
+	boolean discordButton = true;      // small "Discord" button at the bottom right of your inventory
 	boolean deskButton = true;         // "DESK" button above your inventory: the Trade Desk (positions, bazaar, signals, coach)
 	/** Bazaar products shown in the Trade Desk "Bazaar" section and the FCF panel's Bazaar tab (/nef bz add|remove <id>). */
 	java.util.List<String> bazaarWatch = new java.util.ArrayList<>(java.util.Arrays.asList(Desk.DEFAULT_BAZAAR));         // "FCF" button above your inventory: potential free cash flow panel

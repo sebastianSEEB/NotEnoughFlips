@@ -90,7 +90,9 @@ final class FlipPanel {
 
 	private static void section(Highlight.Painter p, int x, int y, int w, String t, String right) {
 		p.text(t, x + 4, y, GOLD);
-		if (right != null) p.text(right, x + w - width(right) - 4, y, DIM);
+		if (right == null || right.isEmpty()) return;
+		String r = FcfPanel.fit(right, Math.max(10, w - width(t) - 14));   // never runs into the title
+		p.text(r, x + w - width(r) - 4, y, DIM);
 	}
 
 	// ------------------------------------------------------------------ paint
@@ -99,7 +101,7 @@ final class FlipPanel {
 		hits.clear();
 		int[] box = GuiPos.box(s);
 		int bx = Math.min(box[0] + box[2] + 3, s.width - BTN_W - 2), by = box[1];
-		McStyle.button(p, bx, by, bx + BTN_W, by + BTN_H, "FLIP", open);
+		McStyle.toggle(p, bx, by, bx + BTN_W, by + BTN_H, "FLIP", open);
 		if (!open) return;
 
 		int w = Math.max(110, Math.min(W, s.width - bx - 2));
@@ -310,7 +312,15 @@ final class FlipPanel {
 			hx += chipW(String.valueOf(n)) + 2;
 		}
 		y += 15;
-		List<Market.BzFlip> list = Bazaar.ranking(cfg, data, budget());
+		// sort: profit/h (default), most profit per round, margin %, or busiest products (coins traded per hour)
+		int sx = x + 3;
+		for (String[] so : Bazaar.SORTS) {
+			final String id = so[0];
+			chip(p, sx, y, so[1], id.equals(cfg.bazaarSort), () -> { cfg.bazaarSort = id; cfg.save(); });
+			sx += chipW(so[1]) + 2;
+		}
+		y += 15;
+		List<Market.BzFlip> list = Bazaar.sorted(cfg, data, budget(), cfg.bazaarSort);
 		double[] today = ProfitLog.marketTotal(ProfitLog.startOfDay(0), "BZ");
 		long age = Bazaar.snapshotAt() > 0 ? (System.currentTimeMillis() - Bazaar.snapshotAt()) / 60000 : -1;
 		long secs = Bazaar.snapshotAt() > 0 ? (System.currentTimeMillis() - Bazaar.snapshotAt()) / 1000 : -1;
@@ -327,7 +337,14 @@ final class FlipPanel {
 			String detail = String.format(Locale.ROOT, "%s× %s→%s · +%s · %s", HudFormatter.fmt((double) f.qty()),
 					HudFormatter.fmt(f.order()), HudFormatter.fmt(f.offer()), HudFormatter.fmt(f.totalProfit()), Market.dur(f.roundHours()))
 					+ Forecasts.tag(f.forecast(), f.adjSource());
-			row(p, x, y, w, name, "+" + HudFormatter.fmt(f.profitPerHour()) + "/h", GOOD, detail, () -> copyBazaar(f, name));
+			String pc = String.format(Locale.ROOT, "%.1f%%", f.pct() * 100);
+			String rt = switch (cfg.bazaarSort == null ? "hour" : cfg.bazaarSort) {
+				case "profit" -> "+" + HudFormatter.fmt(f.totalProfit()) + " " + pc;
+				case "pct" -> pc + " +" + HudFormatter.fmt(f.totalProfit());
+				case "volume" -> HudFormatter.fmt(Bazaar.coinVolume(f)) + "/h " + pc;
+				default -> "+" + HudFormatter.fmt(f.profitPerHour()) + "/h";
+			};
+			row(p, x, y, w, name, rt, GOOD, detail, () -> copyBazaar(f, name));
 			y += R2;
 		}
 		p.text(FcfPanel.fit("click ×3: open/name · amount · price", w - 8), x + 4, y, DIM);

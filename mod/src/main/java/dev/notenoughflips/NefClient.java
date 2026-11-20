@@ -65,7 +65,7 @@ public final class NefClient implements ClientModInitializer {
 					Valuation.Attrs pa = config.valueUpgrades ? Valuation.parse(stack) : null;
 					String lk = pa != null && pa.pet ? CoflClient.petLevelKey(key, pa.petLevel) : null;   // pets: same level range
 					PriceChart.hovered(lk != null ? lk : key, stack.getHoverName().getString().replaceAll("§.", ""),
-							listing != null ? listing.price() : null);
+							listing != null ? listing.price() : null, lines);
 				}
 				if (config.showFlipBanner && r.banner() != null && !lines.isEmpty()) lines.add(1, r.banner());   // under the item name
 				if (r.nextBid() != null && r.bidCap() != null && r.maxBid() != null)
@@ -87,6 +87,7 @@ public final class NefClient implements ClientModInitializer {
 		Bidders.init(config);
 		MyWallet.init(config);
 		DealsPanel.init(config);
+		DiscordButton.init(config);
 		OrdersHud.init(config, data);
 		Keys.register();
 		AhMarket.init();
@@ -571,7 +572,7 @@ public final class NefClient implements ClientModInitializer {
 		try {
 			boolean bz = "bz".equals(j.get("kind").getAsString());
 			DataClient.Live live = bz ? data.live(key) : null;
-			Valuation.Estimate est = bz ? null : Valuation.estimate(j, key, attrs);
+			Valuation.Estimate est = bz ? null : Valuation.estimate(j, key, attrs, listing == null ? null : Double.valueOf(listing.price()));
 			return HudFormatter.render(j, live, config, listing, est, mine);
 		} catch (RuntimeException e) {
 			return null;

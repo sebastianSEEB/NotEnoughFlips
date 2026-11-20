@@ -27,7 +27,7 @@ final class FcfPanel {
 	private static final int W = 168, BTN_W = 36, BTN_H = 14, ROW = 9, STEP = 12, POS_ROW = 19, MAX_POS = 8;
 	// inventory look (McStyle): grey container, dark text, stone buttons
 	private static final int MUTED = McStyle.MUTED, TEXT = McStyle.TEXT,
-			POS = 0xFF3D7BD6, NEG = 0xFFD0453E, TOTAL = 0xFF8B8B8B, GOOD = McStyle.GOOD, GOLD = McStyle.GOLD;
+			POS = 0xFF3987E5, NEG = 0xFFE5534B, TOTAL = 0xFFB8B8B0, GOOD = McStyle.GOOD, GOLD = McStyle.GOLD;
 
 	private static NefConfig cfg;
 	private static DataClient data;
@@ -42,7 +42,7 @@ final class FcfPanel {
 	private static int tab;                     // 0 flow (waterfall), 1 tied up (pie), 2 trend (line)
 	private static boolean week = true;         // trend range: 7 days / 24 hours
 	private static final String[] TABS = {"Flow", "Tied up", "Trend", "Bazaar"};
-	static final int[] SLICE = {0xFF3987E5, 0xFF1BAF7A, 0xFFB07A00, 0xFFB07CF0, 0xFF8A8A8A};
+	static final int[] SLICE = {0xFF3987E5, 0xFF1BAF7A, 0xFFEDA100, 0xFFB07CF0, 0xFF8A8A8A};
 
 	private FcfPanel() {}
 
@@ -118,10 +118,10 @@ final class FcfPanel {
 	static void paint(Screen s, Highlight.Painter p) {
 		if (!active(s)) return;
 		int bx = left(s), by = Math.max(1, top(s) - BTN_H - 2);
-		McStyle.button(p, bx, by, bx + BTN_W, by + BTN_H, "FCF", open);
+		McStyle.toggle(p, bx, by, bx + BTN_W, by + BTN_H, "FCF", open);
 		if (cfg.deskButton && s instanceof InventoryScreen) {
 			int ex = left(s) - DESK_W - 3;
-			McStyle.button(p, ex, by, ex + DESK_W, by + BTN_H, "DESK", Desk.isOn());
+			McStyle.toggle(p, ex, by, ex + DESK_W, by + BTN_H, "DESK", Desk.isOn());
 		}
 		if (!open) return;
 		refresh(false);
@@ -204,7 +204,7 @@ final class FcfPanel {
 			else if (st.kind() == 3) { a = run + st.v(); b = run; }
 			else { a = run; b = run + st.v(); run += st.v(); }
 			int x1 = barX + (int) Math.round(Math.min(a, b) / max * barW), x2 = barX + (int) Math.round(Math.max(a, b) / max * barW);
-			int color = st.kind() == 0 ? TOTAL : st.kind() == 1 ? POS : st.kind() == 2 ? NEG : 0x80D0453E;
+			int color = st.kind() == 0 ? TOTAL : st.kind() == 1 ? POS : st.kind() == 2 ? NEG : 0x80E5534B;
 			bars.add(new int[]{Math.max(barX, x1), by2, Math.max(x1 + 1, Math.min(barX + barW, x2)), by2 + 2, color});
 			by2 += STEP;
 		}
@@ -539,7 +539,7 @@ final class FcfPanel {
 		for (int k = 0; k <= 2; k++) {
 			long v = lo + (hi - lo) * k / 2;
 			int yy = gy + gh - (int) ((double) (v - lo) / (hi - lo) * gh);
-			p.fill(gx, yy, gx + gw, yy + 1, 0xFFA8A8A8);
+			p.fill(gx, yy, gx + gw, yy + 1, 0xFF2C2C29);
 			String t = HudFormatter.fmt((double) v);
 			p.text(t, gx - 3 - font.width(t), yy - 4, MUTED);
 		}
@@ -547,9 +547,9 @@ final class FcfPanel {
 		p.text(l0, gx, gy + gh + 3, MUTED);
 		p.text("now", gx + gw - font.width("now"), gy + gh + 3, MUTED);
 		line(p, ahPts, from, now, lo, hi, gx, gy, gw, gh, 0xFF8A8A8A);
-		line(p, fcfPts, from, now, lo, hi, gx, gy, gw, gh, 0xFFB07A00);
+		line(p, fcfPts, from, now, lo, hi, gx, gy, gw, gh, 0xFFEDA100);
 		int ly = gy + gh + 14;
-		p.fill(x + 6, ly + 3, x + 14, ly + 5, 0xFFB07A00);
+		p.fill(x + 6, ly + 3, x + 14, ly + 5, 0xFFEDA100);
 		String nowTxt = HudFormatter.fmt(fcfNow);
 		p.text("FCF", x + 17, ly, McStyle.TEXT);
 		p.text(nowTxt, x + w - 5 - font.width(nowTxt), ly, TEXT);

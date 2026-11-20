@@ -23,12 +23,12 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
  * above the range show as a red tick at the top. A red banner appears when the item looks manipulated.
  */
 final class PriceChart {
-	// inventory look (McStyle): grey container, dark text
-	private static final int GRID = 0x30000000, LINE = 0xFF2A6FD6, BAND = 0x402A6FD6,
-			LBIN = 0xFFB07A00, FAIR = McStyle.GOOD, LISTING = McStyle.TEXT, VOL = 0x882A6FD6, TEXT = McStyle.TEXT, MUTED = McStyle.MUTED,
+	// the mod's panel look (McStyle): dark panel, white text
+	private static final int GRID = 0x30FFFFFF, LINE = 0xFF3987E5, BAND = 0x402A6FD6,
+			LBIN = 0xFFFFAA00, FAIR = McStyle.GOOD, LISTING = McStyle.TEXT, VOL = 0x882A6FD6, TEXT = McStyle.TEXT, MUTED = McStyle.MUTED,
 			BAD = McStyle.BAD;
 
-	private record Hover(String key, String name, Double listing, long at) {}
+	private record Hover(String key, String name, Double listing, long at, List<net.minecraft.network.chat.Component> lines) {}
 
 	private static NefConfig cfg;
 	private static volatile Hover hover;
@@ -41,7 +41,12 @@ final class PriceChart {
 
 	/** Called from the tooltip of an auction item (any screen). */
 	static void hovered(String key, String name, Double listingPrice) {
-		hover = new Hover(key, name, listingPrice, System.currentTimeMillis());
+		hovered(key, name, listingPrice, null);
+	}
+
+	/** @param lines the tooltip's lines (still being filled): used to keep the chart out of the tooltip's way */
+	static void hovered(String key, String name, Double listingPrice, List<net.minecraft.network.chat.Component> lines) {
+		hover = new Hover(key, name, listingPrice, System.currentTimeMillis(), lines);
 	}
 
 	static void paint(Screen s, Highlight.Painter p) {
@@ -50,17 +55,6 @@ final class PriceChart {
 		if (System.currentTimeMillis() - h.at() > 250) return;               // only while you're hovering it
 		var font = Minecraft.getInstance().font;
 		int[] box = GuiPos.box(s);
-		int leftSpace = box[0] - 8, rightSpace = s.width - (box[0] + box[2]) - 8;
-		int w, x;
-		boolean leftBusy = DealsPanel.isOpen() && rightSpace >= 110;           // the DEALS list is on the left: use the right
-		if (!leftBusy && (leftSpace >= 150 || leftSpace >= rightSpace)) {    // left of the menu (over the FCF panel)
-			w = Math.min(320, Math.max(110, leftSpace));
-			x = Math.max(2, box[0] - 6 - w);
-		} else {
-			w = Math.min(320, Math.max(110, rightSpace));
-			x = Math.min(s.width - w - 2, box[0] + box[2] + 6);
-		}
-		int ph = Math.max(92, Math.min(190, s.height / 2)), top = Math.max(2, box[1] - 4);   // grows with your screen
 		List<double[]> pts = NefClient.cofl == null ? null : NefClient.cofl.week(h.key(), true);
 		JsonObject d = NefClient.docFor(h.key(), false);
 		if (d == null && NefClient.cofl != null) d = NefClient.cofl.doc(h.key(), false);
@@ -69,7 +63,10 @@ final class PriceChart {
 		String manipText = manip ? firstSevere(d) : null;
 		JsonObject cleaned = d == null ? null : HudFormatter.obj(d, "market", "clean");
 		int bannerH = manip ? 22 : cleaned != null ? 11 : 0;
-		int height = 14 + bannerH + 2 + (ph - 22) + 21 + 20;           // title, banner, plot, volume, legend + footer
+		int[] tip = tooltipBox(s, h, font);
+		int[] spot = place(s.width, s.height, box, DealsPanel.isOpen(), bannerH, tip);
+		int x = spot[0], top = spot[1], w = spot[2], ph = spot[3];
+		int height = chartHeight(bannerH, ph);
 		McStyle.panel(p, x, top, x + w, top + height);
 		if (manip) p.fill(x + 2, top + 2, x + w - 2, top + 3, BAD);
 		p.text(FcfPanel.fit(h.name(), w - 60), x + 4, top + 3, TEXT);
@@ -209,4 +206,75 @@ final class PriceChart {
 		}
 		return "prices look unusual";
 	}
+
+	private static int chartHeight(int bannerH, int ph) {
+		return 14 + bannerH + 2 + (ph - 22) + 21 + 20;                   // title, banner, plot, volume, legend + footer
+	}
+
+	/**
+	 * Where vanilla draws the hovered item's tooltip (DefaultTooltipPositioner: right of the mouse, flipped left when
+	 * it doesn't fit, pushed up when it would run off the bottom), with its border: {x1, y1, x2, y2}, or null.
+	 */
+	private static int[] tooltipBox(Screen s, Hover h, net.minecraft.client.gui.Font font) {
+		int mx = GuiPos.mouseX, my = GuiPos.mouseY;
+		List<net.minecraft.network.chat.Component> lines = h.lines();
+		if (lines == null || lines.isEmpty() || mx < 0) return null;
+		int tw = 0;
+		for (net.minecraft.network.chat.Component c : List.copyOf(lines)) tw = Math.max(tw, font.width(c.getString()));
+		int th = lines.size() * 10;
+		return tooltipBox(s.width, s.height, mx, my, tw, th);
+	}
+
+	/** Pure: see above. */
+	static int[] tooltipBox(int sw, int sh, int mx, int my, int tw, int th) {
+		int x = mx + 12, y = my - 12;
+		if (x + tw > sw) x = Math.max(mx - 24 - tw, 4);
+		if (y + th + 3 > sh) y = sh - th - 3;
+		return new int[]{x - 5, y - 5, x + tw + 5, y + th + 5};
+	}
+
+	/**
+	 * Pure: where the chart goes: {x, top, width, plot height}. As high as possible, beside the menu (left first unless
+	 * the DEALS list is there), never over the tooltip: tries the top of the screen, then just above the menu, on both
+	 * sides, then a shorter chart; if nothing is free, the spot that covers the least of the tooltip.
+	 */
+	static int[] place(int sw, int sh, int[] box, boolean dealsOpen, int bannerH, int[] tip) {
+		int leftSpace = box[0] - 8, rightSpace = sw - (box[0] + box[2]) - 8;
+		boolean leftFirst = !(dealsOpen && rightSpace >= 110) && (leftSpace >= 150 || leftSpace >= rightSpace);
+		int[][] sides = new int[2][];
+		int lw = Math.min(320, Math.max(110, leftSpace)), rw = Math.min(320, Math.max(110, rightSpace));
+		int[] left = {Math.max(2, box[0] - 6 - lw), lw}, right = {Math.min(sw - rw - 2, box[0] + box[2] + 6), rw};
+		sides[0] = leftFirst ? left : right;
+		sides[1] = leftFirst ? right : left;
+		int full = Math.max(92, Math.min(190, sh / 2));
+		int[] best = null;
+		long bestOverlap = Long.MAX_VALUE;
+		for (int ph : new int[]{full, Math.max(70, full * 2 / 3), 60}) {
+			int hgt = chartHeight(bannerH, ph);
+			for (int[] full2 : sides) {
+				// the full-width spot, then the same spot trimmed so it ends before / starts after the tooltip
+				java.util.List<int[]> variants = new java.util.ArrayList<>();
+				variants.add(full2);
+				if (tip != null) {
+					int x1 = full2[0], x2 = full2[0] + full2[1];
+					if (tip[0] > x1 && tip[0] - 2 - x1 >= 140) variants.add(new int[]{x1, tip[0] - 2 - x1});
+					if (tip[2] < x2 && x2 - (tip[2] + 2) >= 140) variants.add(new int[]{tip[2] + 2, x2 - tip[2] - 2});
+				}
+				for (int[] side : variants) {
+					for (int top : new int[]{2, Math.max(2, box[1] - 4), Math.max(2, sh - hgt - 2)}) {
+						long ov = tip == null ? 0 : overlap(side[0], top, side[0] + side[1], top + hgt, tip);
+						if (ov == 0) return new int[]{side[0], top, side[1], ph};
+						if (ov < bestOverlap) { bestOverlap = ov; best = new int[]{side[0], top, side[1], ph}; }
+					}
+				}
+			}
+		}
+		return best;
+	}
+
+	private static long overlap(int x1, int y1, int x2, int y2, int[] r) {
+		long w = Math.min(x2, r[2]) - Math.max(x1, r[0]), h = Math.min(y2, r[3]) - Math.max(y1, r[1]);
+		return w <= 0 || h <= 0 ? 0 : w * h;
+	}
+
 }

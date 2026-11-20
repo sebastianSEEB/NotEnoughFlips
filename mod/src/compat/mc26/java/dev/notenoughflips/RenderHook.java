@@ -12,8 +12,10 @@ final class RenderHook {
 	private RenderHook() {}
 
 	static void register(Screen screen, BiConsumer<Screen, Highlight.Painter> drawer) {
-		ScreenEvents.afterExtract(screen).register((s, graphics, mouseX, mouseY, tickProgress) ->
-				drawer.accept(s, new Highlight.Painter() {
+		ScreenEvents.afterExtract(screen).register((s, graphics, mouseX, mouseY, tickProgress) -> {
+			GuiPos.mouseX = mouseX;
+			GuiPos.mouseY = mouseY;
+			drawer.accept(s, new Highlight.Painter() {
 					@Override
 					public void fill(int x1, int y1, int x2, int y2, int argb) {
 						graphics.fill(x1, y1, x2, y2, argb);
@@ -23,6 +25,7 @@ final class RenderHook {
 					public void text(String text, int x, int y, int argb) {
 						graphics.text(Minecraft.getInstance().font, Component.literal(text), x, y, argb, false);
 					}
-				}));
+				});
+		});
 	}
 }

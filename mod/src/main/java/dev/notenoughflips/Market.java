@@ -55,7 +55,8 @@ final class Market {
 		prices.sort(Double::compare);
 		double lo = prices.get((int) Math.floor((prices.size() - 1) * 0.25)), hi = prices.get((int) Math.ceil((prices.size() - 1) * 0.75));
 		double med = median(prices);
-		boolean bad = (lo > 0 && hi / lo >= 2.5) || (top >= 5 * med && sales < 20);
+		// cheap items (under 100k) swing a lot in relative terms and there's little to lose: never "unreliable"
+		boolean bad = med >= 100_000 && ((lo > 0 && hi / lo >= 2.5) || (top >= 5 * med && sales < 20));
 		return new Erratic(bad, lo, hi, top, sales);
 	}
 

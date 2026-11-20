@@ -31,11 +31,10 @@ import net.minecraft.client.gui.screens.Screen;
  * Clicks inside the desk never reach the inventory. Clicking a row opens that auction with /viewauction; you act yourself.
  */
 final class Desk {
-	// looks like a normal Minecraft menu: light grey container with bevelled edges, dark text, stone buttons;
-	// dark boxes (stat slots, to-do notes) use the game's own chat colours
-	private static final int BG = 0xC0101010, PANEL = 0xFFC6C6C6, INK = 0xFF404040, MUTED = 0xFF6E6E6E, LINE = 0xFF9E9E9E,
-			ORANGE = 0xFF9C6500, GREEN = 0xFF1F7F1F, RED = 0xFFAA2020, AMBER = 0xFF9C6500, BLUE = 0xFF2A55A8,
-			LILAC = 0xFF6E44B4, YELLOW = 0xFF7F7200, CHIP = 0xFF6F6F6F, ZEBRA = 0xFFBDBDBD;
+	// the mod's panel look (McStyle): dark see-through panels with blue edge lines, white text, chat colours
+	private static final int BG = 0xC0101010, PANEL = McStyle.PANEL, INK = McStyle.TEXT, MUTED = McStyle.MUTED, LINE = McStyle.LINE,
+			ORANGE = 0xFFFFAA00, GREEN = 0xFF55FF55, RED = 0xFFFF5555, AMBER = 0xFFFFAA00, BLUE = 0xFF7FB4F0,
+			LILAC = 0xFFB07CF0, YELLOW = 0xFFFFFF55, CHIP = McStyle.CHIP, ZEBRA = 0x14FFFFFF;
 	// chat colours (§a §c §6 §e §7 §f) for text on dark boxes
 	private static final int C_GREEN = 0xFF55FF55, C_RED = 0xFFFF5555, C_GOLD = 0xFFFFAA00, C_YELLOW = 0xFFFFFF55,
 			C_GRAY = 0xFFAAAAAA, C_WHITE = 0xFFFFFFFF, C_AQUA = 0xFF55FFFF;
@@ -211,17 +210,12 @@ final class Desk {
 	// ================================================================== Minecraft-style drawing
 	/** A menu container: black edge, white top-left highlight, grey bottom-right shadow (like the inventory). */
 	private static void panel(Highlight.Painter p, int x1, int y1, int x2, int y2) {
-		p.fill(x1, y1, x2, y2, 0xFF000000);
-		p.fill(x1 + 1, y1 + 1, x2 - 1, y2 - 1, 0xFF555555);
-		p.fill(x1 + 1, y1 + 1, x2 - 2, y2 - 2, 0xFFFFFFFF);
-		p.fill(x1 + 2, y1 + 2, x2 - 2, y2 - 2, PANEL);
+		McStyle.panel(p, x1, y1, x2, y2);
 	}
 
-	/** A sunken box like an item slot, filled dark so chat colours read well. */
+	/** An inset box (stat tiles). */
 	private static void slot(Highlight.Painter p, int x1, int y1, int x2, int y2) {
-		p.fill(x1, y1, x2, y2, 0xFFFFFFFF);
-		p.fill(x1, y1, x2 - 1, y2 - 1, 0xFF373737);
-		p.fill(x1 + 1, y1 + 1, x2 - 1, y2 - 1, 0xFF5A5A5A);
+		McStyle.slot(p, x1, y1, x2, y2);
 	}
 
 	/** A note in the style of an item tooltip (dark purple background, purple edge). */
@@ -236,11 +230,7 @@ final class Desk {
 
 	/** A stone button. Selected = white frame and yellow text, like a hovered button in the game menus. */
 	private static void button(Highlight.Painter p, int x1, int y1, int x2, int y2, String label, boolean sel, Runnable r) {
-		p.fill(x1, y1, x2, y2, sel ? 0xFFFFFFFF : 0xFF000000);
-		p.fill(x1 + 1, y1 + 1, x2 - 1, y2 - 1, 0xFF6F6F6F);
-		p.fill(x1 + 1, y1 + 1, x2 - 1, y1 + 2, 0xFFA8A8A8);
-		p.fill(x1 + 1, y2 - 2, x2 - 1, y2 - 1, 0xFF4A4A4A);
-		p.text(label, x1 + (x2 - x1 - w(label)) / 2, y1 + (y2 - y1 - 8) / 2 + 1, sel ? C_YELLOW : 0xFFE0E0E0);
+		McStyle.button(p, x1, y1, x2, y2, label, sel);
 		if (r != null) btn(x1, y1, x2, y2, r);
 	}
 
@@ -341,7 +331,7 @@ final class Desk {
 			int tx = cols[i].right() ? cx[i + 1] - 3 - w(hd) : cx[i] + 2;
 			p.text(hd, tx, y, INK);
 		}
-		p.fill(x, y + 10, x + w, y + 11, 0xFF8B8B8B);
+		p.fill(x, y + 10, x + w, y + 11, LINE);
 		int rowH = 12, avail = h - 14 - (foot != null ? 12 : 0) - 10;
 		int per = Math.max(1, avail / rowH), pages = Math.max(1, (rows.size() + per - 1) / per);
 		page = Math.min(page, pages - 1);

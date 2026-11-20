@@ -199,6 +199,11 @@ final class Verdict {
 		List<double[]> week = bz || NefClient.cofl == null ? null : NefClient.cofl.weekClean(HudFormatter.str(d, "k"), false);
 		Market.Erratic er = bz ? null : Market.erratic(week);
 		boolean unreliable = er != null && er.bad();
+		// the week's sales mix copies with very different upgrades: when copies with the same or better upgrades are
+		// listed right now, price against those instead of calling it unreliable
+		boolean covered = !bz && listing != null && est != null && est.cover() > 0;
+		boolean mixed = unreliable && covered;
+		if (mixed) unreliable = false;
 		if (unreliable) risk = Math.max(risk, 2);
 
 		double diff = price / fair - 1;
@@ -214,18 +219,26 @@ final class Verdict {
 		if (listing != null && !listing.bin()) { label = "BID CHECK"; color = 0x55FFFF; }
 		if (unreliable) { label = "NO RELIABLE PRICE"; color = 0xFFAA00; }
 
+		if (unreliable) {
+			// nothing trustworthy to compare with: say so, and show no value / flip numbers at all
+			out.add(Component.empty()
+					.append(HudFormatter.seg(" ➜ " + label, color))
+					.append(HudFormatter.seg(": " + what + " " + HudFormatter.fmt(price) + ", no trustworthy price to compare it with", HudFormatter.GRAY)));
+			out.add(HudFormatter.line(String.format(Locale.ROOT, "    ⚠ sales this week go from %s to %s%s (%d sales)",
+					HudFormatter.fmt(er.low()), HudFormatter.fmt(er.high()), er.top() > er.high() * 2 ? ", one at " + HudFormatter.fmt(er.top()) : "",
+					er.sales()), HudFormatter.YELLOW));
+			out.add(HudFormatter.line("      copies with very different upgrades, or coin transfers, and no copy like this one is listed to compare with",
+					HudFormatter.YELLOW));
+			flags(out, d, bz);
+			return new Result(out, null);
+		}
 		out.add(Component.empty()
 				.append(HudFormatter.seg(" ➜ " + label, color))
 				.append(HudFormatter.seg(": " + what + " " + HudFormatter.fmt(price) + " is " + pct
 						+ (diff < 0 ? " under " : " over ") + basis + " (" + HudFormatter.fmt(fair) + ")", HudFormatter.GRAY)));
-
-		if (unreliable) {
-			out.add(HudFormatter.line(String.format(Locale.ROOT, "    ⚠ sales this week are all over the place: %s to %s%s (%d sales)",
-					HudFormatter.fmt(er.low()), HudFormatter.fmt(er.high()), er.top() > er.high() * 2 ? ", one at " + HudFormatter.fmt(er.top()) : "",
-					er.sales()), HudFormatter.YELLOW));
-			out.add(HudFormatter.line("      likely coin transfers or manipulation: this 'fair value' can't be trusted, so no buy / flip advice",
-					HudFormatter.YELLOW));
-		}
+		if (mixed)
+			out.add(HudFormatter.line("    sales this week mix copies with very different upgrades, so this is priced against the "
+					+ est.coverListed() + " listed cop" + (est.coverListed() == 1 ? "y" : "ies") + " with the same or better upgrades", HudFormatter.DARK));
 		if (!bz) {
 			Market.Liquidity liq = Market.liquidity(d, fair);
 			etaOut = liq.etaHours();
@@ -256,7 +269,10 @@ final class Verdict {
 			Double lowest = HudFormatter.num(HudFormatter.obj(market, "listed"), "lowest");
 			boolean notCheapest = listing != null && lowest != null && (!listing.bin() || listing.price() > lowest * 1.001);
 			boolean upgraded = est != null && (est.attrs().pet || est.extras() > 0.05 * est.value());
-			if (upgraded && listing != null) {
+			if (covered) {
+				// a copy at least as good is listed: you'd have to sell just under it, and never above this copy's value
+				resale = Math.min(est.value(), Market.undercut(est.cover()));
+			} else if (upgraded && listing != null) {
 				// the cheapest BIN is usually a different (clean / lower level) copy: compete with its clean-equivalent
 				// price plus this copy's upgrades, never above this copy's value
 				double cleanLowest = lowest != null ? lowest : est.base();
@@ -268,7 +284,7 @@ final class Verdict {
 			}
 			double sellAt = resale != null ? resale : fair;
 			double floor = week == null ? 0 : FlipFeed.clearingFloor(week);   // what the cheapest copies really sold for
-			if (floor > 0 && sellAt > Market.undercut(floor) && !upgraded) sellAt = Market.undercut(floor);
+			if (floor > 0 && sellAt > Market.undercut(floor) && !upgraded && !covered) sellAt = Market.undercut(floor);
 			double net = netAfterFees(sellAt);
 
 			if (listing != null && !listing.bin()) {

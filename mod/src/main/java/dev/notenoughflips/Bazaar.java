@@ -23,6 +23,7 @@ import java.util.Map;
  */
 final class Bazaar {
 	private static volatile List<Market.BzFlip> ranked = List.of();
+	private static volatile List<Market.BzFlip> passing = List.of();   // every flip that passed the checks, any order
 	private static volatile long rankedAt;
 	private static volatile double rankedBudget = -1;
 	private static volatile Map<String, String> prettyNames = Map.of();
@@ -70,6 +71,7 @@ final class Bazaar {
 		out.sort((a, b) -> Double.compare(b.coinsPerHour(), a.coinsPerHour()));
 		for (int i = 0; i < Math.min(25, out.size()); i++) data.bazaarSlide(out.get(i).id());   // queue 7-day trends for the top
 		for (int i = 0; i < Math.min(40, out.size()); i++) data.bazaarNormal(out.get(i).id());  // and their normal level (trap check)
+		passing = List.copyOf(out);
 		ranked = out.size() > 50 ? new ArrayList<>(out.subList(0, 50)) : out;
 		Map<String, Integer> r = new HashMap<>();
 		for (int i = 0; i < ranked.size(); i++) r.put(ranked.get(i).id(), i + 1);
@@ -77,6 +79,32 @@ final class Bazaar {
 		rankedAt = now;
 		rankedBudget = budget;
 		return ranked;
+	}
+
+	/** Sort orders for the Best flips list: id, chip label. */
+	static final String[][] SORTS = {{"hour", "/hour"}, {"profit", "Profit"}, {"pct", "%"}, {"volume", "Volume"}};
+
+	/**
+	 * The same safe flips (same checks as {@link #ranking}) in the order you picked: profit per hour (default), most
+	 * profit per round, highest margin %, or most coins traded per hour on the bazaar (busiest products first).
+	 */
+	static List<Market.BzFlip> sorted(NefConfig cfg, DataClient data, double budget, String sort) {
+		List<Market.BzFlip> base = ranking(cfg, data, budget);
+		if (sort == null || sort.equals("hour")) return base;
+		List<Market.BzFlip> out = new ArrayList<>(passing.isEmpty() ? base : passing);
+		java.util.Comparator<Market.BzFlip> c = switch (sort) {
+			case "profit" -> java.util.Comparator.comparingDouble(Market.BzFlip::totalProfit);
+			case "pct" -> java.util.Comparator.comparingDouble(Market.BzFlip::pct);
+			case "volume" -> java.util.Comparator.comparingDouble(Bazaar::coinVolume);
+			default -> java.util.Comparator.comparingDouble(Market.BzFlip::coinsPerHour);
+		};
+		out.sort(c.reversed());
+		return out.size() > 50 ? new ArrayList<>(out.subList(0, 50)) : out;
+	}
+
+	/** Coins traded per hour on the bazaar for this product (units/h × price). */
+	static double coinVolume(Market.BzFlip f) {
+		return f.marketPerHour() * f.offer();
 	}
 
 	/**

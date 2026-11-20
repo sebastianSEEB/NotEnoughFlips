@@ -83,6 +83,7 @@ final class BidHelper {
 					FcfPanel.paint(s, painter);
 					DealsPanel.paint(s, painter);
 					if (s instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen) Desk.paint(s, painter);
+					DiscordButton.paint(s, painter);
 				} catch (RuntimeException e) {                 // never let a drawing bug break the inventory
 					System.err.println("[NEF] FCF/Trade Desk: " + e);
 				}
@@ -96,6 +97,7 @@ final class BidHelper {
 				try {
 					if (FlipPanel.click(s, event.x(), event.y())) return false;      // handled by the FLIP panel
 					if (DealsPanel.click(s, event.x(), event.y())) return false;     // handled by the DEALS panel
+					if (DiscordButton.click(s, event.x(), event.y())) return false;  // opens the Discord invite (game asks first)
 				} catch (RuntimeException e) {
 					System.err.println("[NEF] FLIP click: " + e);
 				}

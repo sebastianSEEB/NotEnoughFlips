@@ -66,7 +66,7 @@ final class DealsPanel {
 		hits.clear();
 		if (FcfPanel.isOpen()) open = false;                          // they share the left side
 		int[] b = button(s);
-		McStyle.button(p, b[0], b[1], b[2], b[3], label(), open);
+		McStyle.toggle(p, b[0], b[1], b[2], b[3], label(), open);
 		hits.add(new Hit(b[0], b[1], b[2], b[3], () -> {
 			open = !open;
 			page = 0;
