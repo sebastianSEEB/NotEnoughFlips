@@ -61,6 +61,9 @@ final class Deals {
 			for (double[] q : week) if (q[0] >= from) sold += q[4];
 			if (sold < Math.max(1, cfg.snipeMinSalesPerDay)) continue;  // barely sells: you'd be stuck holding it
 			double ceiling = Valuation.ceiling(week);
+			double npc = NpcPrices.price(c.key());                      // an NPC sells it: never worth more than that
+			if (npc > 0 && ceiling > 0) ceiling = Math.min(ceiling, npc);
+			else if (npc > 0) ceiling = npc;
 			double fair = ceiling > 0 ? Math.min(c.ref(), ceiling) : c.ref();
 			// "identical" copies leave out small upgrades: if any copy with the same or better upgrades is listed for
 			// less, that's the price you'd have to beat when you resell
@@ -78,7 +81,7 @@ final class Deals {
 			}
 			double profit = Verdict.netAfterFees(Market.undercut(fair)) - c.price();
 			double discount = 1 - c.price() / fair;
-			if (profit <= 0 || discount * 100 < cfg.dealMinDiscountPercent || fair < cfg.dealMinValue) continue;
+			if (profit <= 0 || discount * 100 < cfg.dealMinDiscountPercent || fair < Math.max(cfg.dealMinValue, cfg.minItemValue)) continue;
 			long first = firstSeen.computeIfAbsent(c.uuid(), u -> now);
 			out.add(new Deal(c.uuid(), c.key(), c.price(), 1, fair, discount, profit, first));
 		}

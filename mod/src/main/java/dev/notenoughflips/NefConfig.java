@@ -61,6 +61,7 @@ final class NefConfig {
 	int purseReportSeconds = 300;
 	boolean dealAlerts = true;        // chat alert for new underpriced BINs found by your own AH scan (or a local server)
 	double dealMinDiscountPercent = 20;
+	double minItemValue = 1_000_000;  // AH: ignore items worth less than this everywhere (flips, deals, snipes, tooltip banners, gold frames); /nef minvalue
 	double dealMinValue = 1_000_000;
 	int dealPollSeconds = 60;   // clicking an auction copies the target bid to your clipboard (you place the bid yourself)
 	// ---- flipping (set by the 30-second setup in the FLIP panel; /nef setup to redo it)

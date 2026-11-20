@@ -443,6 +443,22 @@ public final class NefClient implements ClientModInitializer {
 									ctx.getSource().sendFeedback(Component.literal("[NEF] Forecasts OFF: flips use live prices only."));
 									return 1;
 								})))
+						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("minvalue").executes(ctx -> {
+									ctx.getSource().sendFeedback(Component.literal("[NEF] Items worth less than " + HudFormatter.fmt(config.minItemValue)
+											+ " are ignored (flips, deals, snipes, tooltip banners). Change it: /nef minvalue 500k · 1m · 5m · 0 = any"));
+									return 1;
+								})
+								.then(RequiredArgumentBuilder.<FabricClientCommandSource, String>argument("amount", StringArgumentType.word()).executes(ctx -> {
+									Double v = parseAmount(StringArgumentType.getString(ctx, "amount"));
+									if (v == null || v < 0) {
+										ctx.getSource().sendFeedback(Component.literal("[NEF] Couldn't read that amount. Try /nef minvalue 1m"));
+										return 0;
+									}
+									config.minItemValue = v;
+									config.save();
+									ctx.getSource().sendFeedback(Component.literal("[NEF] Now ignoring items worth less than " + HudFormatter.fmt(v) + "."));
+									return 1;
+								})))
 						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("bztax").executes(ctx -> {
 									ctx.getSource().sendFeedback(Component.literal("[NEF] Bazaar tax used: " + config.bazaarTaxPercent
 											+ "% · 1.25% by default, lower with the Bazaar Flipper upgrade (Elizabeth's Community Shop): /nef bztax 1.125"));

@@ -328,6 +328,8 @@ final class Valuation {
 			// 50k bow is not the plain price)
 			MarketBook.Item book = MarketBook.get(key);
 			if (book != null && book.lowest() > 0 && book.lowest() < base) base = book.lowest();
+			double npc = NpcPrices.price(key);                            // an NPC sells a plain one for less
+			if (npc > 0 && npc < base) base = npc;
 			parts.add(new Part("clean", base));
 		} else {
 			return null;

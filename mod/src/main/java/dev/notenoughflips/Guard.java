@@ -53,6 +53,10 @@ final class Guard {
 		Verdict.Listing listing = Verdict.listing(lines, st.getCount());
 		JsonObject doc = NefClient.docFor(key, false);
 		if (listing == null || doc == null || "bz".equals(HudFormatter.str(doc, "kind"))) return null;
+		double npc = NpcPrices.price(key);
+		if (npc > 0 && listing.price() > npc * 1.05)
+			return new Warn("Sold by an NPC", String.format(Locale.ROOT, "An NPC sells this for %s, %.0f%% less: buy it there",
+					HudFormatter.fmt(npc), 100 * (1 - npc / listing.price())), true);
 		if (Market.hasSevereFlag(doc))
 			return new Warn("Possible manipulation", firstFlag(doc, 2), true);
 		Double fair = Verdict.fair(doc);

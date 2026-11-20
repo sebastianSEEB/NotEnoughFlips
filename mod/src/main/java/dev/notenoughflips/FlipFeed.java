@@ -189,6 +189,7 @@ final class FlipFeed {
 		double minPct = cfg.minFlipProfitPercent / 100.0;
 		for (Candidate c : candidates) {
 			if (c.price() > budget) continue;
+			if (c.ref() < cfg.minItemValue) continue;                   // cheap items: not worth your time (your setting)
 			JsonObject d = NefClient.docFor(c.key(), false);
 			List<double[]> week = NefClient.cofl == null ? null : NefClient.cofl.weekClean(c.key(), true);
 			if (d == null || week == null) {
@@ -236,6 +237,7 @@ final class FlipFeed {
 		Market.Liquidity liq = Market.liquidity(d, fair);
 		double fc = forecast == null ? 0 : Forecasts.counted(forecast, liq.etaHours());
 		double resale = Math.min(Market.undercut(c.ref()), Math.min(fair, Market.undercut(floor)) * (1 + fc));
+		resale = NpcPrices.cap(c.key(), resale);                      // an NPC sells it for less: nobody pays more
 		double net = Verdict.netAfterFees(resale);
 		double profit = net - c.price();
 		return new Flip(c, resale, net, profit, profit / c.price(), liq, floor, fc);

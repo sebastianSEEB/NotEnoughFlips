@@ -195,6 +195,13 @@ final class Verdict {
 			}
 		}
 		if (price == null || fair == null || fair <= 0) return new Result(out, null);
+		// an NPC sells it: nobody pays more than the shop price, whatever the listings and sales say
+		double npc = NpcPrices.price(HudFormatter.str(d, "k"));
+		boolean npcCapped = npc > 0 && fair > npc && (est == null || est.extras() < 0.05 * est.value());
+		if (npcCapped) {
+			fair = npc;
+			basis = "the NPC shop price";
+		}
 		// sale history all over the place (coin transfers, 100M "sales" of a cheap item): the fair value is meaningless
 		List<double[]> week = bz || NefClient.cofl == null ? null : NefClient.cofl.weekClean(HudFormatter.str(d, "k"), false);
 		Market.Erratic er = bz ? null : Market.erratic(week);
@@ -236,6 +243,9 @@ final class Verdict {
 				.append(HudFormatter.seg(" ➜ " + label, color))
 				.append(HudFormatter.seg(": " + what + " " + HudFormatter.fmt(price) + " is " + pct
 						+ (diff < 0 ? " under " : " over ") + basis + " (" + HudFormatter.fmt(fair) + ")", HudFormatter.GRAY)));
+		if (npc > 0 && price > npc * 1.02)
+			out.add(HudFormatter.line("    ⚠ an NPC sells this for " + HudFormatter.fmt(npc) + ": buy it from the NPC, nobody pays more here",
+					HudFormatter.YELLOW));
 		if (mixed)
 			out.add(HudFormatter.line("    sales this week mix copies with very different upgrades, so this is priced against the "
 					+ est.coverListed() + " listed cop" + (est.coverListed() == 1 ? "y" : "ies") + " with the same or better upgrades", HudFormatter.DARK));
@@ -283,6 +293,7 @@ final class Verdict {
 				resale = Math.min(resale, est.value());
 			}
 			double sellAt = resale != null ? resale : fair;
+			if (npc > 0 && sellAt > npc && (est == null || est.extras() < 0.05 * est.value())) sellAt = npc;
 			double floor = week == null ? 0 : FlipFeed.clearingFloor(week);   // what the cheapest copies really sold for
 			if (floor > 0 && sellAt > Market.undercut(floor) && !upgraded && !covered) sellAt = Market.undercut(floor);
 			double net = netAfterFees(sellAt);
@@ -293,7 +304,7 @@ final class Verdict {
 				detail(out, cfg, HudFormatter.line("    max profitable bid: ", HudFormatter.GRAY, HudFormatter.fmt(maxBid), 0x55FF55,
 						String.format(Locale.ROOT, "  (>= %.0f%% profit reselling at %s after fees)", minPct * 100, HudFormatter.fmt(sellAt)),
 						HudFormatter.DARK));
-				if (room && liquid && risk < 2) {
+				if (room && liquid && risk < 2 && sellAt >= cfg.minItemValue) {
 					banner = bold("✔ WORTH BIDDING: bid up to " + HudFormatter.fmt(maxBid)
 							+ " → +" + HudFormatter.fmt(net - listing.price()) + " profit at current bid", 0x55FF55);
 					out.add(HudFormatter.line("    ✔ worth bidding: +" + HudFormatter.fmt(net - listing.price()) + " at the current bid, +"
@@ -341,7 +352,7 @@ final class Verdict {
 				} else {
 					out.add(HudFormatter.line("    ✘ no flip profit after fees (resale ≈ " + HudFormatter.fmt(sellAt) + ")", HudFormatter.DARK));
 				}
-				if (ppct >= minPct && liquid && quick && risk < 2) {
+				if (ppct >= minPct && liquid && quick && risk < 2 && sellAt >= cfg.minItemValue) {
 					banner = bold(String.format(Locale.ROOT, "✔ PROFIT FLIP: %s, resell for +%s (%.0f%%)",
 							listing != null ? "buy now" : "cheapest BIN " + HudFormatter.fmt(price),
 							HudFormatter.fmt(profit), ppct * 100), 0x55FF55);

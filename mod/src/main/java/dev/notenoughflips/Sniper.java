@@ -103,7 +103,7 @@ final class Sniper {
 		for (Map.Entry<String, double[]> e : refs.entrySet()) {
 			if (e.getKey().contains("#")) continue;
 			double[] r = e.getValue();
-			if (r[2] < 3 || r[0] < cfg.snipeMinValue || blocked(e.getKey(), cfg)) continue;
+			if (r[2] < 3 || r[0] < Math.max(cfg.snipeMinValue, cfg.minItemValue) || blocked(e.getKey(), cfg)) continue;
 			double trig = r[0] * (1 - need);
 			if (cfg.snipeMaxPrice > 0 && trig > cfg.snipeMaxPrice) continue;
 			out.add(new Watch(e.getKey(), r[0], (int) r[2], trig));
@@ -360,7 +360,7 @@ final class Sniper {
 		if (blocked(k, cfg)) return null;
 		String bucket = variant[0] == null || variant[0].isEmpty() ? k : k + "#" + variant[0];
 		double[] r = refs.get(bucket);
-		if (r == null || r[2] < 3 || r[0] < cfg.snipeMinValue) return null;
+		if (r == null || r[2] < 3 || r[0] < Math.max(cfg.snipeMinValue, cfg.minItemValue)) return null;
 		long n = Math.max(1, count[0]);
 		double unit = (double) total / n;
 		double need = Math.max(0, Math.min(0.95, cfg.snipeMinPercent / 100.0));
@@ -389,6 +389,8 @@ final class Sniper {
 		double resale = Math.min(Market.undercut(ref), Math.min(fair, Market.undercut(floor)));
 		double cov = coverPrice(p);
 		if (cov > 0) resale = Math.min(resale, Market.undercut(cov));     // a copy with the same or better upgrades is cheaper
+		double npc = NpcPrices.price(p.key());
+		if (npc > 0) resale = Math.min(resale, npc);                      // an NPC sells it for less: nobody pays more
 		double profit = Verdict.netAfterFees(resale * p.count()) - p.total();
 		double pct = profit / p.total();
 		if (profit < cfg.minFlipProfitCoins || pct < 0.05) return "too little profit after fees at real sale prices";
@@ -405,6 +407,8 @@ final class Sniper {
 		double one = Math.min(p.ref()[0], p.ref()[1]);
 		double cov = coverPrice(p);
 		if (cov > 0) one = Math.min(one, cov);
+		double npc = NpcPrices.price(p.key());
+		if (npc > 0) one = Math.min(one, npc);
 		double resale = Market.undercut(one) * p.count();
 		double profit = Verdict.netAfterFees(resale) - p.total();
 		if (profit < cfg.minFlipProfitCoins || profit / p.total() < 0.05) return null;

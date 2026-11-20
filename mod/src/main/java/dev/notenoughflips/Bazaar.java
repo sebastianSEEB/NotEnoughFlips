@@ -61,6 +61,8 @@ final class Bazaar {
 			DataClient.Live l = e.getValue();
 			double[] normal = data.bazaarNormalCached(e.getKey());
 			if (trap(l, normal) != null) continue;                 // pumped or crashing vs its own 7-day level
+			double npc = NpcPrices.price(e.getKey());
+			if (npc > 0 && l.buy() > npc) continue;                 // an NPC sells it cheaper than your sell offer would be
 			Market.BzFlip f = flip(cfg, e.getKey(), l, budget);
 			if (f == null || f.perUnit() <= 0 || f.pct() < 0.02 || f.pct() > cfg.bazaarMaxSpreadPercent / 100.0) continue;
 			if (f.unitsPerHour() < 10 || f.qty() < 1 || f.totalProfit() < 1000) continue;

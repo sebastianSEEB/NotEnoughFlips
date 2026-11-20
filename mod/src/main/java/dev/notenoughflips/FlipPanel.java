@@ -238,6 +238,9 @@ final class FlipPanel {
 				: at > 0 ? "scan " + Math.max(0, (now - at) / 60000) + "m ago" : "";
 		section(p, x, y, w, "Market flips", when);
 		y += 11;
+		// your floor: items worth less than this are ignored everywhere (flips, deals, snipes, tooltip banners)
+		y = limitRow(p, x, y, "min value", new double[]{0, 500_000, 1_000_000, 5_000_000, 10_000_000}, cfg.minItemValue,
+				v -> v == 0 ? "any" : HudFormatter.fmt(v), v -> { cfg.minItemValue = v; cfg.save(); viewAt = 0; });
 		if (!cfg.flipFeed) {
 			p.text(FcfPanel.fit("Feed is off: /nef feed on", w - 8), x + 4, y, MUTED);
 			return y + 10;
