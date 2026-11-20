@@ -82,6 +82,11 @@ final class MarketBook {
 		b[i] = unit;
 	}
 
+	/** True once an AH scan has filled the copy-by-copy comparison. */
+	static boolean scanned() {
+		return !specs.isEmpty();
+	}
+
 	/** One BIN from the scan with its upgrades (non-pets). */
 	static synchronized void observeSpec(String key, double unit, Spec spec) {
 		if (key == null || spec == null || unit <= 0) return;

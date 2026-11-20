@@ -389,6 +389,15 @@ final class Valuation {
 		else if (capped != null) sb.append(", capped at what copies really sell for");
 		out.add(HudFormatter.line("    this copy ≈ ", HudFormatter.GRAY, HudFormatter.fmt(e.value()), HudFormatter.WHITE,
 				" = " + sb, HudFormatter.DARK));
+		// the comparison that matters for an upgraded copy: not the lowest BIN (any copy), but the cheapest one as good
+		if (!e.attrs().pet && e.value() > e.base() * 1.02) {
+			if (e.cover() > 0 && capped == null)
+				out.add(HudFormatter.line("    cheapest copy as good as this one: ", HudFormatter.GRAY, HudFormatter.fmt(e.cover()), HudFormatter.WHITE,
+						" (" + e.coverListed() + " listed); the lowest BIN is a copy with fewer upgrades", HudFormatter.DARK));
+			else if (e.cover() <= 0 && MarketBook.scanned())
+				out.add(HudFormatter.line("    no other copy with the same or better upgrades is listed; the lowest BIN has fewer upgrades",
+						HudFormatter.DARK));
+		}
 		Attrs a = e.attrs();
 		String rar = a.pet ? a.petTier : a.rarity;
 		if (rar != null) {

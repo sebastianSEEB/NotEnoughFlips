@@ -161,7 +161,7 @@ final class HudFormatter {
 			Double lbin = num(s, "lbin");
 			Double listed = num(s, "listed");
 			boolean cofl = "SkyCofl".equals(str(d, "source"));
-			out.add(line("Auction House ", GOLD, "lowest BIN ", GRAY, fmt(lbin), YELLOW,
+			out.add(line("Auction House ", GOLD, "lowest BIN (any copy) ", GRAY, fmt(lbin), YELLOW,
 					listed != null ? "  (" + listed.intValue() + " listed)" : "", DARK));
 			JsonObject a24 = obj(stats, "24h", "sold");
 			Double sales = num(s, "sales");
