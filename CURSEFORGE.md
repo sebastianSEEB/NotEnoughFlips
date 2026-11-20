@@ -8,6 +8,8 @@ I went from 1M to 100M coins in two days using only this mod, with no money-maki
 
 Hover over an item to see its average price, the lowest BIN, the 7-day trend and a verdict: GOOD BUY, FAIR PRICE or OVERPRICED. An item is only compared with identical copies, meaning the same stars, recombobulator, hot potato books, big enchants, gems, attributes, skin and scrolls. When an item's sales are too erratic to price, the tooltip says NO RELIABLE PRICE instead of guessing. When some of an item's recent sales look manipulated (sudden pumps or buyouts), those periods are left out and the price is worked out from the normal sales only; the chart marks them in red.
 
+An upgraded item is never valued above the cheapest listed copy with the same or better upgrades, and nothing is valued above what an NPC sells it for. Upgrades that buyers don't pay for, like enchants anyone can add at the enchanting table, aren't counted. Items worth less than your minimum (1M by default) are left out of flips, deals and snipes.
+
 ## Flip finder
 
 Press E and click FLIP, to the right of your inventory. The panel has five tabs:
@@ -16,7 +18,7 @@ Press E and click FLIP, to the right of your inventory. The panel has five tabs:
 - Bazaar: live order flips on products that buy and sell quickly. Profit per hour takes into account the other orders competing at the top of the book.
 - Craft: recipes that sell for more than the ingredients cost.
 - Snipe: everything that can be sniped right now.
-- Profit: what you have made so far.
+- Profit: what you made this session (with profit per hour), today and this week, and every AH flip: what you paid, what you got after fees and how long you held it.
 
 ## Snipe alerts
 
@@ -33,6 +35,12 @@ Press O (change it in Controls → Key Binds) to show your bazaar orders at the 
 ## Everything is clickable
 
 Rows open what they are about: auctions open the auction, bazaar items open the Bazaar, craft ingredients open the Bazaar or the AH search. Chat alerts for deals, snipes, outbid bazaar orders and watched items have [open], [open in Bazaar] or [search AH] links.
+
+## Selling and trading
+
+- Undercut alerts: when someone lists a copy with the same or better upgrades for less than your BIN, you get a chat alert with a link to their auction, usually within seconds.
+- Suggested BIN price: in Create BIN Auction, the mod shows what to list at (just under the cheapest comparable copy) and fills it into the price sign when you click the price button. You check it and press Done.
+- Trade check: in a player trade, a panel shows what you give and what you get are worth, and the difference.
 
 ## Bidder check
 
@@ -55,6 +63,7 @@ Bazaar price forecasts for 1, 6 and 24 hours ahead. Each product gets the foreca
 - Bought: everything you bought and still hold, with what you paid, the goal price and progress toward it.
 - Coins: what your coins add up to once everything settles, where they are right now, how they changed over the last week, what your open auctions are worth, and your profit today, this week and this month.
 - Bazaar: prices with 7-day charts, the bazaar signals, and how many coins are traded per day on the bazaar and the AH.
+- Settings: every option in one place (`/nef settings`).
 
 Click a row to open that auction.
 
@@ -93,6 +102,9 @@ A free Hypixel API key (developer.hypixel.net) turns on the bidder check and add
 | `/nef signals` | Bazaar misprices and correlations |
 | `/nef forecast on\|off` | Use forecasts in the flip lists |
 | `/nef desk` | Open the Trade Desk |
+| `/nef settings` | Every option in one place |
+| `/nef session` | Profit this session and per hour |
+| `/nef minvalue <amount>` | Ignore items worth less than this (1M by default, `0` = any) |
 | `/nef bztax <percent>` | Your bazaar tax (1.25 by default, lower with the Bazaar Flipper upgrade) |
 | `/nef orders` | Bazaar orders HUD on or off (also key O): `size small\|medium\|large`, `max <1-20>` |
 | `/nef mode simple\|pro` | Short or detailed tooltips |
