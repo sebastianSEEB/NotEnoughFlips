@@ -55,8 +55,9 @@ final class Deals {
 			java.util.List<double[]> week = NefClient.cofl == null ? null : NefClient.cofl.weekClean(c.key(), false);
 			if (week == null) continue;                               // no sales history loaded yet: can't check it
 			com.google.gson.JsonObject doc = NefClient.docFor(c.key(), false);
-			if (doc != null && Market.hasSevereFlag(doc)) continue;   // manipulated
-			if (doc == null && c.attrs() != null && c.attrs().hasUpgrades()) continue;   // upgraded copy we can't value yet
+			if (doc == null) continue;                                // no price data yet: can't check it, so no deal
+			if (Market.hasSevereFlag(doc)) continue;                  // manipulated
+			if (Market.erratic(week).bad()) continue;                 // sales all over the place: no trustworthy price
 			double sold = 0, from = now - 86_400_000L;
 			for (double[] q : week) if (q[0] >= from) sold += q[4];
 			if (sold < Math.max(1, cfg.snipeMinSalesPerDay)) continue;  // barely sells: you'd be stuck holding it
@@ -65,6 +66,16 @@ final class Deals {
 			if (npc > 0 && ceiling > 0) ceiling = Math.min(ceiling, npc);
 			else if (npc > 0) ceiling = npc;
 			double fair = ceiling > 0 ? Math.min(c.ref(), ceiling) : c.ref();
+			// what copies actually SELL for, not what they're listed for: the median sale (Verdict.fair), and for a plain
+			// copy also just under what the cheapest copies sold for (same as the flip finder)
+			boolean upgraded = c.attrs() != null && c.attrs().hasUpgrades();
+			Double sales = Verdict.fair(doc);
+			if (sales == null || sales <= 0) continue;
+			if (!upgraded) {
+				fair = Math.min(fair, sales);
+				double floor = FlipFeed.clearingFloor(week);
+				if (floor > 0) fair = Math.min(fair, Market.undercut(floor));
+			}
 			// "identical" copies leave out small upgrades: if any copy with the same or better upgrades is listed for
 			// less, that's the price you'd have to beat when you resell
 			double[] cov = MarketBook.cover(c.key(), c.spec(), c.price());
@@ -117,8 +128,8 @@ final class Deals {
 				if (!announced.add(d.uuid()) || first) continue;          // first poll: just remember what's already there
 				if (shown++ >= 3) continue;                                // don't flood chat
 				Chat.say(HudFormatter.line("[NEF] DEAL ", 0x55FF55,
-						(d.count() > 1 ? d.count() + "x " : "") + d.key(), HudFormatter.WHITE,
-						String.format(Locale.ROOT, "  BIN %s (%.0f%% under fair %s)  ", HudFormatter.fmt(d.price()), d.discount() * 100,
+						(d.count() > 1 ? d.count() + "x " : "") + Desk.pretty(d.key()), HudFormatter.WHITE,
+						String.format(Locale.ROOT, "  BIN %s (%.0f%% under what it sells for, %s)  ", HudFormatter.fmt(d.price()), d.discount() * 100,
 								HudFormatter.fmt(d.fair() * d.count())), HudFormatter.GRAY,
 						"+" + HudFormatter.fmt(d.profit()) + " after fees", 0x55FF55).append(HudFormatter.openAuction(d.uuid())));
 			}
