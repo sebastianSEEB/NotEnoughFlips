@@ -41,7 +41,7 @@ final class DiscordButton {
 	static boolean click(Screen s, double mx, double my) {
 		int[] r = rect(s);
 		if (r == null || mx < r[0] || mx >= r[2] || my < r[1] || my >= r[3]) return false;
-		ConfirmLinkScreen.confirmLinkNow(s, URL);
+		ConfirmLinkScreen.confirmLinkNow(s, java.net.URI.create(URL));
 		return true;
 	}
 }
