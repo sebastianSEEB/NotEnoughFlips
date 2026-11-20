@@ -13,6 +13,13 @@ final class Cmd {
 		if (u.matches("[0-9a-fA-F]{32}")) Chat.command("viewauction " + u);
 	}
 
+	/** Text made safe for /ahs and /bz: letters, digits, space, ' ( ) - only, at most 40 characters. */
+	static String clean(String s) {
+		if (s == null) return "";
+		String c = s.replaceAll("[^A-Za-z0-9 '()\\-]", "").trim();
+		return c.length() > 40 ? c.substring(0, 40).trim() : c;
+	}
+
 	/** /ahs <name>: Hypixel's auction search (same character rules as /bz). */
 	static void ahSearch(String search) {
 		if (search == null) return;

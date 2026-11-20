@@ -19,7 +19,12 @@ import com.google.gson.JsonObject;
  * them and /nef open <n> opens that auction (you buy it yourself).
  */
 final class Deals {
-	record Deal(String uuid, String key, double price, int count, double fair, double discount, double profit, long firstSeen) {}
+	/** how: "" = AH flip (resell on the AH), "npc" = sell it to an NPC. */
+	record Deal(String uuid, String key, double price, int count, double fair, double discount, double profit, long firstSeen, String how) {
+		Deal(String uuid, String key, double price, int count, double fair, double discount, double profit, long firstSeen) {
+			this(uuid, key, price, count, fair, discount, profit, firstSeen, "");
+		}
+	}
 
 	private static volatile List<Deal> current = List.of();
 	private static final Set<String> announced = new HashSet<>();
@@ -96,6 +101,10 @@ final class Deals {
 			long first = firstSeen.computeIfAbsent(c.uuid(), u -> now);
 			out.add(new Deal(c.uuid(), c.key(), c.price(), 1, fair, discount, profit, first));
 		}
+		for (NpcFlips.Flip f : NpcFlips.list()) {                      // under what an NPC pays: no resale risk at all
+			long first = firstSeen.computeIfAbsent(f.uuid(), u -> now);
+			out.add(new Deal(f.uuid(), f.key(), f.unit() * f.count(), f.count(), f.npc(), 1 - f.unit() / f.npc(), f.profit(), first, "npc"));
+		}
 		out.sort((a, b) -> Double.compare(b.profit(), a.profit()));
 		if (firstSeen.size() > 5000) firstSeen.clear();
 		return out;
@@ -125,6 +134,7 @@ final class Deals {
 			int shown = 0;
 			for (int i = 0; i < out.size(); i++) {
 				Deal d = out.get(i);
+				if ("npc".equals(d.how())) continue;                      // NPC flips alert live (NpcFlips), not here
 				if (!announced.add(d.uuid()) || first) continue;          // first poll: just remember what's already there
 				if (shown++ >= 3) continue;                                // don't flood chat
 				Chat.say(HudFormatter.line("[NEF] DEAL ", 0x55FF55,

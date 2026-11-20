@@ -416,6 +416,9 @@ final class Desk {
 				ly = onOff(p, x, ly, lw, "Undercut alerts", cfg.undercutAlerts, v -> cfg.undercutAlerts = v);
 				ly = onOff(p, x, ly, lw, "Suggest BIN price", cfg.listPriceFill, v -> cfg.listPriceFill = v);
 				ly = onOff(p, x, ly, lw, "Trade check", cfg.tradeCheck, v -> cfg.tradeCheck = v);
+				ly = onOff(p, x, ly, lw, "NPC flips", cfg.npcFlips, v -> cfg.npcFlips = v);
+				int na = PriceAlerts.list().size();
+				p.text(FcfPanel.fit("Price alerts: " + na + " set · /nef alert under 600m hyperion · /nef alert list", w), x, ly + 2, MUTED);
 			}
 		}
 		p.text("Saved as you click.", x, y + h - 10, McStyle.DIM);

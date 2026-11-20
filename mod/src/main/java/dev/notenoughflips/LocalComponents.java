@@ -30,6 +30,7 @@ final class LocalComponents {
 	private static volatile JsonObject upgradeCosts;
 	private static volatile long costsAt;
 	private static volatile boolean costsLoading;
+	private static volatile JsonObject npcSell = new JsonObject();       // item id → what an NPC pays for one
 
 	private LocalComponents() {}
 
@@ -71,15 +72,17 @@ final class LocalComponents {
 	/** Star costs per item id from Hypixel's public items resource (no key), cached on disk for a day. */
 	private static void loadCosts() {
 		long now = System.currentTimeMillis();
-		if (costsLoading || upgradeCosts != null && now - costsAt < 86_400_000L) return;
+		boolean fresh = upgradeCosts != null && now - costsAt < 86_400_000L && npcSell.size() > 0;
+		if (costsLoading || fresh || upgradeCosts != null && now - costsAt < 60_000L) return;   // (older files lack npc_sell: refetch once)
 		costsLoading = true;
 		Path file = Accounts.shared("upgrade-costs.json");
 		try {
 			if (upgradeCosts == null && Files.exists(file)) {
 				JsonObject j = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
 				upgradeCosts = j.getAsJsonObject("costs");
+				if (j.has("npc_sell")) npcSell = j.getAsJsonObject("npc_sell");
 				costsAt = j.get("at").getAsLong();
-				if (now - costsAt < 86_400_000L) { costsLoading = false; return; }
+				if (now - costsAt < 86_400_000L && npcSell.size() > 0) { costsLoading = false; return; }
 			}
 		} catch (Exception ignored) {
 			// fetch below
@@ -89,12 +92,15 @@ final class LocalComponents {
 		http.sendAsync(req, HttpResponse.BodyHandlers.ofString()).whenComplete((r, e) -> {
 			try {
 				if (e == null && r.statusCode() == 200) {
-					JsonObject costs = costs(JsonParser.parseString(r.body()).getAsJsonObject());
+					JsonObject res = JsonParser.parseString(r.body()).getAsJsonObject();
+					JsonObject costs = costs(res);
 					upgradeCosts = costs;
+					npcSell = npcSell(res);
 					costsAt = System.currentTimeMillis();
 					JsonObject out = new JsonObject();
 					out.addProperty("at", costsAt);
 					out.add("costs", costs);
+					out.add("npc_sell", npcSell);
 					Files.writeString(file, out.toString(), StandardCharsets.UTF_8);
 				}
 			} catch (Exception ignored) {
@@ -103,6 +109,27 @@ final class LocalComponents {
 				costsLoading = false;
 			}
 		});
+	}
+
+	/** Pure: {item id: npc_sell_price} from the items resource (what an NPC pays you for one). */
+	static JsonObject npcSell(JsonObject resource) {
+		JsonObject out = new JsonObject();
+		if (!resource.has("items") || !resource.get("items").isJsonArray()) return out;
+		for (JsonElement e : resource.getAsJsonArray("items")) {
+			JsonObject it = e.getAsJsonObject();
+			if (it.has("id") && it.has("npc_sell_price") && it.get("npc_sell_price").isJsonPrimitive()) {
+				double v = it.get("npc_sell_price").getAsDouble();
+				if (v > 0) out.addProperty(it.get("id").getAsString(), v);
+			}
+		}
+		return out;
+	}
+
+	/** What an NPC pays for one of this item (0 = unknown / can't be sold to an NPC). Loads the list if needed. */
+	static double npcSellPrice(String id) {
+		loadCosts();
+		JsonObject m = npcSell;
+		return id != null && m.has(id) ? m.get(id).getAsDouble() : 0;
 	}
 
 	/** Pure: {item id: upgrade_costs} from the items resource. */

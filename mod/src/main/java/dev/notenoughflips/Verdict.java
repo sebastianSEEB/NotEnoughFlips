@@ -195,6 +195,10 @@ final class Verdict {
 			}
 		}
 		if (price == null || fair == null || fair <= 0) return new Result(out, null);
+		// an NPC buys it for this much: it's worth at least that (anyone can sell it there, no fees)
+		double npcPays = LocalComponents.npcSellPrice(HudFormatter.str(d, "k"));
+		boolean npcFlip = npcPays > 0 && NpcFlips.profit(price, 1, npcPays) > 0;
+		if (npcPays > 0 && fair < npcPays) fair = npcPays;
 		// an NPC sells it: nobody pays more than the shop price, whatever the listings and sales say
 		double npc = NpcPrices.price(HudFormatter.str(d, "k"));
 		boolean npcCapped = npc > 0 && fair > npc && (est == null || est.extras() < 0.05 * est.value());
@@ -243,6 +247,12 @@ final class Verdict {
 				.append(HudFormatter.seg(" ➜ " + label, color))
 				.append(HudFormatter.seg(": " + what + " " + HudFormatter.fmt(price) + " is " + pct
 						+ (diff < 0 ? " under " : " over ") + basis + " (" + HudFormatter.fmt(fair) + ")", HudFormatter.GRAY)));
+		if (npcFlip) {
+			out.add(HudFormatter.line("    ✔ NPC FLIP: an NPC pays " + HudFormatter.fmt(npcPays) + " for this: +" + HudFormatter.fmt(npcPays - price)
+					+ " each, no fees, no waiting", HudFormatter.GREEN));
+			banner = bold("✔ NPC FLIP: buy it and sell it to an NPC for +" + HudFormatter.fmt(npcPays - price) + " each", 0x55FF55);
+			profitOut = npcPays - price;
+		}
 		if (npc > 0 && price > npc * 1.02)
 			out.add(HudFormatter.line("    ⚠ an NPC sells this for " + HudFormatter.fmt(npc) + ": buy it from the NPC, nobody pays more here",
 					HudFormatter.YELLOW));

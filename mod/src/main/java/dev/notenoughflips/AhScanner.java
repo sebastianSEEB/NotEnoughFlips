@@ -126,6 +126,7 @@ final class AhScanner {
 		List<JsonObject> mine = new ArrayList<>();
 		long now = System.currentTimeMillis();
 		MarketBook.begin();
+		NpcFlips.begin();
 		if (feed) FlipFeed.begin();
 		int pages = 1;
 		long updated = 0;
@@ -154,6 +155,12 @@ final class AhScanner {
 			status = "scanning the AH… page " + (p + 1) + "/" + pages;
 		}
 		MarketBook.finish(updated > 0 ? updated : System.currentTimeMillis());   // first: your listings are checked against it
+		NpcFlips.finish();
+		try {
+			PriceAlerts.check();                                          // fresh lowest BINs: your price alerts
+		} catch (RuntimeException ignored) {
+			// checked again in 30 s
+		}
 		build(mine, me, updated > 0 ? updated : System.currentTimeMillis());
 		if (feed) FlipFeed.finish(updated > 0 ? updated : System.currentTimeMillis());
 		lastDone = System.currentTimeMillis();

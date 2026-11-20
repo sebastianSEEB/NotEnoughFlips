@@ -105,8 +105,11 @@ final class DealsPanel {
 					+ (NefClient.data() == null ? Desk.pretty(d.key()) : Bazaar.name(d.key(), NefClient.data()));
 			String right = "+" + HudFormatter.fmt(d.profit());
 			long mins = Math.max(0, (now - d.firstSeen()) / 60000);
-			String detail = String.format(Locale.ROOT, "BIN %s · %.0f%% off · %s", HudFormatter.fmt(d.price()), d.discount() * 100,
-					mins < 1 ? "new" : mins + "m ago");
+			String detail = "npc".equals(d.how())
+					? String.format(Locale.ROOT, "BIN %s · sell to NPC %s · %s", HudFormatter.fmt(d.price()), HudFormatter.fmt(d.fair() * d.count()),
+							mins < 1 ? "new" : mins + "m ago")
+					: String.format(Locale.ROOT, "BIN %s · %.0f%% off · %s", HudFormatter.fmt(d.price()), d.discount() * 100,
+							mins < 1 ? "new" : mins + "m ago");
 			McStyle.slot(p, x + 4, y - 2, x + w - 4, y + ROW - 3);
 			p.text(FcfPanel.fit(name, w - w(right) - 18), x + 8, y + 1, 0xFFFFFFFF);
 			p.text(right, x + w - 8 - w(right), y + 1, 0xFF55FF55);

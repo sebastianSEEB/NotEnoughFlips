@@ -42,6 +42,11 @@ Rows open what they are about: auctions open the auction, bazaar items open the 
 - Suggested BIN price: in Create BIN Auction, the mod shows what to list at (just under the cheapest comparable copy) and fills it into the price sign when you click the price button. You check it and press Done.
 - Trade check: in a player trade, a panel shows what you give and what you get are worth, and the difference.
 
+## NPC flips and price alerts
+
+- NPC flips: when an item is listed on the AH, or sold on the bazaar, for less than an NPC pays for it, you can buy it and sell it to the NPC with no fees and no waiting. These show up in DEALS and as chat alerts (new listings within seconds). The tooltip says so too, and no item is valued below what an NPC pays for it.
+- Price alerts: `/nef alert under 600m hyperion` or `/nef alert over 3m booster cookie` (or `hand` for the item you're holding). You get a chat message and a ping when the price crosses your line. "Under" alerts on the AH fire within seconds of the listing.
+
 ## Bidder check
 
 In an auction, a panel shows how many coins each of the other bidders has in purse and bank. If none of them can afford to go much higher, you don't need to open with a big bid.
@@ -104,6 +109,7 @@ A free Hypixel API key (developer.hypixel.net) turns on the bidder check and add
 | `/nef desk` | Open the Trade Desk |
 | `/nef settings` | Every option in one place |
 | `/nef session` | Profit this session and per hour |
+| `/nef alert under\|over <price> <item>` | Your own price alerts (`list`, `remove <n>`, `clear`) |
 | `/nef minvalue <amount>` | Ignore items worth less than this (1M by default, `0` = any) |
 | `/nef bztax <percent>` | Your bazaar tax (1.25 by default, lower with the Bazaar Flipper upgrade) |
 | `/nef orders` | Bazaar orders HUD on or off (also key O): `size small\|medium\|large`, `max <1-20>` |

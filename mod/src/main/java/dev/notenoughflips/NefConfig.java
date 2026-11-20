@@ -61,6 +61,8 @@ final class NefConfig {
 	int purseReportSeconds = 300;
 	boolean dealAlerts = true;        // chat alert for new underpriced BINs found by your own AH scan (or a local server)
 	double dealMinDiscountPercent = 20;
+	boolean npcFlips = true;          // items listed / sold for less than an NPC pays: DEALS list + chat alert
+	double npcFlipMinProfit = 50_000; // smallest NPC flip worth telling you about (coins)
 	boolean tradeCheck = true;        // player trade menu: what each side is worth and the difference
 	boolean listPriceFill = true;     // Create BIN Auction: show a suggested price and fill it into the price sign
 	boolean undercutAlerts = true;    // chat alert when someone lists a copy as good as yours for less than your BIN

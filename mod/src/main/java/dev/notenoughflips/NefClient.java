@@ -90,6 +90,7 @@ public final class NefClient implements ClientModInitializer {
 		DiscordButton.init(config);
 		Undercut.init(config);
 		TradeCheck.init(config);
+		NpcFlips.init(config);
 		OrdersHud.init(config, data);
 		Keys.register();
 		AhMarket.init();
@@ -108,6 +109,20 @@ public final class NefClient implements ClientModInitializer {
 			Accounts.tick();                                               // another account → its own files
 			Sniper.clientTick();                                           // auto-open that waited for chat to close
 			Keys.tick(config);                                             // O: bazaar orders HUD on/off
+			if (client.player != null && ticks[0] % 600 == 300) {        // every 30 s: your price alerts
+				try {
+					PriceAlerts.check();
+				} catch (RuntimeException e) {
+					System.err.println("[NEF] price alerts: " + e);
+				}
+			}
+			if (client.player != null && ticks[0] % 1200 == 600) {       // every minute: bazaar NPC flips
+				try {
+					NpcFlips.bazaar(data);
+				} catch (RuntimeException e) {
+					System.err.println("[NEF] npc flips: " + e);
+				}
+			}
 			if (client.player != null && ticks[0] % 200 == 0) {          // every 10 s
 				try {
 					MyWallet.tick();                                   // your bank (with your API key), every 5 min
@@ -497,6 +512,33 @@ public final class NefClient implements ClientModInitializer {
 													ctx.getSource().sendFeedback(Component.literal("[NEF] Bazaar orders HUD shows up to " + config.bzHudMax + " orders per side."));
 													return 1;
 												}))))
+						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("alert").executes(ctx -> {
+									ctx.getSource().sendFeedback(Component.literal("[NEF] Price alerts: /nef alert under 600m hyperion · /nef alert over 3m booster cookie"
+											+ " · /nef alert under 50m hand · /nef alert list · /nef alert remove <n> · /nef alert clear"));
+									return 1;
+								})
+								.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("list").executes(ctx -> {
+									var l = PriceAlerts.list();
+									if (l.isEmpty()) ctx.getSource().sendFeedback(Component.literal("[NEF] No price alerts. Add one: /nef alert under 600m hyperion"));
+									for (int i = 0; i < l.size(); i++)
+										ctx.getSource().sendFeedback(Component.literal("[NEF] " + (i + 1) + ". " + l.get(i).describe() + (l.get(i).fired ? " (fired)" : "")));
+									return 1;
+								}))
+								.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("clear").executes(ctx -> {
+									PriceAlerts.clear();
+									ctx.getSource().sendFeedback(Component.literal("[NEF] All price alerts removed."));
+									return 1;
+								}))
+								.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("remove")
+										.then(RequiredArgumentBuilder.<FabricClientCommandSource, Integer>argument("n",
+												com.mojang.brigadier.arguments.IntegerArgumentType.integer(1)).executes(ctx -> {
+											int n = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "n");
+											ctx.getSource().sendFeedback(Component.literal(PriceAlerts.remove(n - 1)
+													? "[NEF] Removed alert " + n + "." : "[NEF] There's no alert " + n + " (see /nef alert list)."));
+											return 1;
+										})))
+								.then(priceAlert("under", true))
+								.then(priceAlert("over", false)))
 						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("session").executes(ctx -> {
 							ctx.getSource().sendFeedback(Component.literal("[NEF] " + ProfitLog.sessionLine()));
 							return 1;
@@ -611,6 +653,24 @@ public final class NefClient implements ClientModInitializer {
 	}
 
 	/** Your player name (for "Seller: you" on your own listings), or null. */
+	/** /nef alert under|over <price> <item…> */
+	private static LiteralArgumentBuilder<FabricClientCommandSource> priceAlert(String word, boolean under) {
+		return LiteralArgumentBuilder.<FabricClientCommandSource>literal(word)
+				.then(RequiredArgumentBuilder.<FabricClientCommandSource, String>argument("price", StringArgumentType.word())
+						.then(RequiredArgumentBuilder.<FabricClientCommandSource, String>argument("item", StringArgumentType.greedyString())
+								.executes(ctx -> {
+									Double p = parseAmount(StringArgumentType.getString(ctx, "price"));
+									if (p == null || p <= 0) {
+										ctx.getSource().sendFeedback(Component.literal("[NEF] Couldn't read that price. Try /nef alert " + word + " 600m hyperion"));
+										return 0;
+									}
+									String name = PriceAlerts.add(StringArgumentType.getString(ctx, "item"), under, p);
+									ctx.getSource().sendFeedback(Component.literal(name == null ? "[NEF] Hold the item or type its name."
+											: "[NEF] Alert set: " + name + " " + word + " " + HudFormatter.fmt(p) + ". You'll get a chat message (and a ping)."));
+									return 1;
+								})));
+	}
+
 	/** "20m", "500k", "1.5b", "250000" → coins; null if unreadable. */
 	static Double parseAmount(String t) {
 		if (t == null) return null;

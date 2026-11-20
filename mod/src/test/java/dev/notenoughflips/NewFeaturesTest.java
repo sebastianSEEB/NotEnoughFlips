@@ -45,4 +45,32 @@ class NewFeaturesTest {
 		assertEquals(4_000_000, ProfitLog.perHour(1_000_000, 60_000), 1, "1M in the first minute counts as 15 min, not 60M/h");
 		assertEquals(5_000_000, ProfitLog.perHour(10_000_000, 2 * 3_600_000L), 1);
 	}
+
+	@Test
+	void npcFlipNeedsARealGap() {
+		assertEquals(400_000, NpcFlips.profit(600_000, 1, 1_000_000), 1);
+		assertEquals(2_000, NpcFlips.profit(9_000, 2, 10_000), 1, "a stack counts every item");
+		assertEquals(0, NpcFlips.profit(990_000, 1, 1_000_000), 0, "1 % under is rounding, not a flip");
+		assertEquals(0, NpcFlips.profit(500, 1, 0), 0, "no NPC price: no flip");
+	}
+
+	@Test
+	void npcSellPricesAreReadFromTheItemsList() {
+		com.google.gson.JsonObject res = com.google.gson.JsonParser.parseString(
+				"{\"items\":[{\"id\":\"A\",\"npc_sell_price\":12.5},{\"id\":\"B\"},{\"id\":\"C\",\"npc_sell_price\":0}]}").getAsJsonObject();
+		com.google.gson.JsonObject m = LocalComponents.npcSell(res);
+		assertEquals(12.5, m.get("A").getAsDouble(), 1e-9);
+		assertFalse(m.has("B"));
+		assertFalse(m.has("C"), "0 = can't be sold to an NPC");
+	}
+
+	@Test
+	void priceAlertsFireOnceAndRearm() {
+		assertTrue(PriceAlerts.crossed(true, 600_000_000, 590_000_000));
+		assertFalse(PriceAlerts.crossed(true, 600_000_000, 610_000_000));
+		assertTrue(PriceAlerts.crossed(false, 3_000_000, 3_100_000));
+		assertFalse(PriceAlerts.crossed(false, 3_000_000, 0), "no price yet: never fires");
+		assertFalse(PriceAlerts.rearm(true, 600_000_000, 605_000_000), "within 2 %: stays fired");
+		assertTrue(PriceAlerts.rearm(true, 600_000_000, 620_000_000));
+	}
 }
