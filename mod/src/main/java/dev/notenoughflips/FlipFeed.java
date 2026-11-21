@@ -138,6 +138,20 @@ final class FlipFeed {
 			refs.put(e.getKey(), new double[]{b.p[0], Math.min(b.p[1], Market.median(next)), b.listed});
 		}
 		Sniper.setRefs(refs);
+		// have the sales history of every item the sniper could alert on ready before a snipe shows up
+		if (NefClient.cofl != null && cfg != null) {
+			double min = Math.max(cfg.minItemValue, cfg.snipeMinValue);
+			Map<String, Double> listedByKey = new HashMap<>();
+			for (Map.Entry<String, double[]> e : refs.entrySet()) {
+				double[] r = e.getValue();
+				if (r[1] < min || r[2] < 3) continue;
+				String k = e.getKey().contains("#") ? e.getKey().substring(0, e.getKey().indexOf('#')) : e.getKey();
+				listedByKey.merge(k, r[2], Double::sum);
+			}
+			List<String> keys = new ArrayList<>(listedByKey.keySet());
+			keys.sort((a, b) -> Double.compare(listedByKey.get(b), listedByKey.get(a)));   // most listed (most snipes) first
+			NefClient.cofl.prefetch(keys.size() > 400 ? keys.subList(0, 400) : keys);
+		}
 		// items worth sniping (≥ 3 copies listed, lowest BIN ≥ 500k), most valuable first: their price history is
 		// loaded in the background so a hit can be checked instantly instead of waiting for SkyCofl
 		Map<String, Double> worth = new HashMap<>();

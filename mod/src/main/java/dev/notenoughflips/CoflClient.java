@@ -56,8 +56,104 @@ final class CoflClient {
 	private volatile long nextSlot = 0;
 	private volatile long blockedUntil = 0;
 
+	// low-priority prefetch: sales histories of items the sniper may alert on, fetched only while SkyCofl is idle,
+	// so a snipe's ✓ check is instant; histories are kept on disk so they're there right after a restart
+	private final java.util.LinkedHashSet<String> warm = new java.util.LinkedHashSet<>();
+	private static final long WARM_FRESH_MS = 30 * 60_000L, DISK_MAX_AGE_MS = 12 * 3_600_000L;
+	private volatile long savedAt = System.currentTimeMillis();
+
 	CoflClient(NefConfig cfg) {
 		this.cfg = cfg;
+		load();
+		queue.scheduleAtFixedRate(() -> {
+			try {
+				warmTick();
+			} catch (RuntimeException ignored) {
+				// next tick
+			}
+		}, 10, 2, TimeUnit.SECONDS);
+	}
+
+	/** Items to have the sales history of ready (most important first); replaces the previous list. */
+	void prefetch(java.util.Collection<String> keys) {
+		synchronized (warm) {
+			warm.clear();
+			warm.addAll(keys);
+		}
+	}
+
+	/** One prefetch step, only when nothing else is waiting for SkyCofl (your tooltips always go first). */
+	private void warmTick() {
+		long now = System.currentTimeMillis();
+		if (now - savedAt > 5 * 60_000L) save();
+		if (cfg == null || !cfg.coflFallback || now < Math.max(nextSlot, blockedUntil) || !inFlight.isEmpty()) return;
+		String key = null;
+		synchronized (warm) {
+			java.util.Iterator<String> it = warm.iterator();
+			while (it.hasNext()) {
+				String k = it.next();
+				it.remove();
+				Entry e = cache.get(k);
+				if (e == null || e.history() == null || now - e.at() > WARM_FRESH_MS) { key = k; break; }
+			}
+		}
+		if (key == null || inFlight.putIfAbsent(key, true) != null) return;
+		final String k = key;
+		get(url(k, "/history/week")).handle((h, err) -> {
+			if (err == null && h != null && h.isJsonArray()) {
+				Entry old = cache.get(k);
+				cache.put(k, new Entry(System.currentTimeMillis(), h.getAsJsonArray(), old == null ? 0 : old.binAt(),
+						old == null ? null : old.bin(), false));
+			}
+			return null;
+		}).whenComplete((v, err) -> inFlight.remove(k));
+	}
+
+	private static java.nio.file.Path diskFile() {
+		return Accounts.shared("cofl-history.json.gz");
+	}
+
+	/** Histories younger than 12 h from the last session (refreshed in the background when used). */
+	private void load() {
+		try {
+			java.nio.file.Path f = diskFile();
+			if (!java.nio.file.Files.exists(f)) return;
+			JsonObject root;
+			try (var in = new java.util.zip.GZIPInputStream(java.nio.file.Files.newInputStream(f))) {
+				root = JsonParser.parseString(new String(in.readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject();
+			}
+			long now = System.currentTimeMillis();
+			for (String k : root.keySet()) {
+				JsonObject o = root.getAsJsonObject(k);
+				long at = o.get("at").getAsLong();
+				if (now - at < DISK_MAX_AGE_MS && o.has("h") && o.get("h").isJsonArray())
+					cache.putIfAbsent(k, new Entry(at, o.getAsJsonArray("h"), 0, null, false));
+			}
+		} catch (Exception ignored) {
+			// start empty
+		}
+	}
+
+	private void save() {
+		savedAt = System.currentTimeMillis();
+		try {
+			JsonObject root = new JsonObject();
+			for (Map.Entry<String, Entry> e : cache.entrySet()) {
+				Entry v = e.getValue();
+				if (v.history() == null || v.history().isEmpty() || savedAt - v.at() > DISK_MAX_AGE_MS) continue;
+				JsonObject o = new JsonObject();
+				o.addProperty("at", v.at());
+				o.add("h", v.history());
+				root.add(e.getKey(), o);
+			}
+			java.nio.file.Path f = diskFile(), tmp = f.resolveSibling(f.getFileName() + ".tmp");
+			try (var out = new java.util.zip.GZIPOutputStream(java.nio.file.Files.newOutputStream(tmp))) {
+				out.write(root.toString().getBytes(StandardCharsets.UTF_8));
+			}
+			java.nio.file.Files.move(tmp, f, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+		} catch (Exception ignored) {
+			// not critical
+		}
 	}
 
 	/** Pets that level to 200 instead of 100. */
