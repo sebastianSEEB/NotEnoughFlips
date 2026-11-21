@@ -415,7 +415,44 @@ public final class NefClient implements ClientModInitializer {
 											config.save();
 											ctx.getSource().sendFeedback(Component.literal("[NEF] Alerts only show the banner; /nef snipe opens it."));
 											return 1;
-										}))))
+										})))
+								.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("beats").executes(ctx -> {
+											ctx.getSource().sendFeedback(Component.literal(String.format(java.util.Locale.ROOT,
+													"[NEF] Countdown beats %s: tick 3, 2, 1, then GO when a new BIN can be bought (hold %.1f s, played %d ms early). "
+															+ "Hypixel clock %s. /nef snipe beats on|off · hold <seconds> · early <ms>",
+													config.snipeBeats ? "on" : "off", config.snipeGraceMs / 1000.0, config.snipeBeatLeadMs,
+													ServerClock.known() ? String.format(java.util.Locale.ROOT, "%+d ms vs this PC (±%d)", ServerClock.offset(), ServerClock.uncertainty())
+															: "not measured yet")));
+											return 1;
+										})
+										.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("on").executes(ctx -> {
+											config.snipeBeats = true;
+											config.save();
+											ctx.getSource().sendFeedback(Component.literal("[NEF] Countdown beats on. Mouse on Buy Item Right Now, click on the GO."));
+											return 1;
+										}))
+										.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("off").executes(ctx -> {
+											config.snipeBeats = false;
+											config.save();
+											ctx.getSource().sendFeedback(Component.literal("[NEF] Countdown beats off."));
+											return 1;
+										}))
+										.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("hold")
+												.then(RequiredArgumentBuilder.<FabricClientCommandSource, Double>argument("seconds", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0, 60))
+														.executes(ctx -> {
+															config.snipeGraceMs = (int) Math.round(com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "seconds") * 1000);
+															config.save();
+															ctx.getSource().sendFeedback(Component.literal("[NEF] New BINs are counted down from " + config.snipeGraceMs / 1000.0 + " s."));
+															return 1;
+														})))
+										.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("early")
+												.then(RequiredArgumentBuilder.<FabricClientCommandSource, Integer>argument("ms", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 500))
+														.executes(ctx -> {
+															config.snipeBeatLeadMs = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "ms");
+															config.save();
+															ctx.getSource().sendFeedback(Component.literal("[NEF] Beats play " + config.snipeBeatLeadMs + " ms early."));
+															return 1;
+														})))))
 						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("apikey")
 								.then(RequiredArgumentBuilder.<FabricClientCommandSource, String>argument("key", StringArgumentType.word())
 										.executes(ctx -> {

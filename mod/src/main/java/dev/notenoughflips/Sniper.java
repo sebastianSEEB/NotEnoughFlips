@@ -241,8 +241,60 @@ final class Sniper {
 
 	/** Seconds until a new BIN can be bought (0 = now). */
 	static long graceLeft(String uuid) {
-		Long t = listedAt.get(uuid);
-		return t == null ? 0 : Math.max(0, (t + 20_000L - System.currentTimeMillis() + 999) / 1000);
+		long ms = graceMs(uuid);
+		return ms <= 0 ? 0 : (ms + 999) / 1000;
+	}
+
+	/** ms until a new BIN can be bought (Hypixel's clock: start + the hold); ≤ 0 = buyable; Long.MIN_VALUE = unknown. */
+	static long graceMs(String uuid) {
+		Long t = uuid == null ? null : listedAt.get(uuid);
+		return t == null ? Long.MIN_VALUE : t + cfg.snipeGraceMs - ServerClock.now();
+	}
+
+	/** "3.4s", "BUY NOW" (for 3 s after the hold ends), or null. Pure. */
+	static String countdown(long ms) {
+		if (ms == Long.MIN_VALUE || ms < -3_000) return null;
+		if (ms <= 0) return "BUY NOW";
+		return String.format(Locale.ROOT, "%.1fs", Math.ceil(ms / 100.0) / 10.0);
+	}
+
+	/** When to play the beats, in ms from now: 3 s, 2 s, 1 s before the hold ends, and the "go" at 0 (last). Pure. */
+	static long[] beats(long graceMs, long leadMs) {
+		java.util.List<Long> out = new java.util.ArrayList<>();
+		for (long at : new long[]{graceMs - 3000, graceMs - 2000, graceMs - 1000, graceMs}) {
+			long d = at - leadMs;
+			if (d >= 0) out.add(d);
+		}
+		return out.stream().mapToLong(Long::longValue).toArray();
+	}
+
+	private static final java.util.concurrent.ScheduledExecutorService BEAT = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+		Thread t = new Thread(r, "NEF snipe beats");
+		t.setDaemon(true);
+		t.setPriority(Thread.MAX_PRIORITY);
+		return t;
+	});
+	private static volatile String beatFor;
+
+	/**
+	 * Count the hold down by ear: tick, tick, tick, GO, timed to Hypixel's clock. You click on the beat instead of
+	 * reacting to it, which is the only way a person gets close to a macro on the first buyable moment.
+	 */
+	private static void scheduleBeats(Alert al) {
+		if (!cfg.snipeBeats || al.uuid().equals(beatFor)) return;
+		long g = graceMs(al.uuid());
+		if (g == Long.MIN_VALUE || g <= 0) return;
+		beatFor = al.uuid();
+		long[] at = beats(g, cfg.snipeBeatLeadMs);
+		for (int i = 0; i < at.length; i++) {
+			boolean go = i == at.length - 1 && at[i] == g - cfg.snipeBeatLeadMs;
+			BEAT.schedule(() -> {
+				Alert cur = latest();
+				if (cur == null || !cur.uuid().equals(al.uuid())) return;     // a newer alert took over
+				if (cur.status().startsWith("bad") || cur.status().startsWith("unchecked")) return;
+				Chat.beat(go);
+			}, at[i], java.util.concurrent.TimeUnit.MILLISECONDS);
+		}
 	}
 
 	private static void handle(JsonObject a) {
@@ -468,6 +520,7 @@ final class Sniper {
 			alerts.add(al);
 			if (alerts.size() > 20) alerts.remove(0);
 		}
+		scheduleBeats(al);
 		Minecraft.getInstance().execute(() -> {
 			Chat.ping();
 			long now = System.currentTimeMillis();
@@ -552,8 +605,9 @@ final class Sniper {
 				: String.format(Locale.ROOT, "%s → resell ≈ %s   +%s (%.0f%%) after fees · %s", HudFormatter.fmt(a.price()),
 						HudFormatter.fmt(a.resale()), HudFormatter.fmt(a.profit()), a.pct() * 100,
 						ok ? "✓ checked, not manipulated" : "checking history…");
-		long grace = graceLeft(a.uuid());
-		String l3 = grace > 0 ? "Buyable in " + grace + "s (Hypixel holds new BINs for 20 s): get the Buy button ready"
+		String cd = countdown(graceMs(a.uuid()));
+		String l3 = cd != null && !cd.equals("BUY NOW") ? "Buyable in " + cd + ": mouse on Buy Item Right Now, click on the GO beat"
+				: "BUY NOW".equals(cd) ? "BUY NOW: Buy Item Right Now, then Confirm"
 				: BidHelper.currentScreen() == null ? "Type /nef snipe to open it (or open any menu and click this)"
 				: cfg.snipeAutoOpen && System.currentTimeMillis() - autoOpenedAt < SHOW_MS ? "Opened: press Buy Item Right Now, then Confirm"
 				: "Click here to open it";
@@ -628,6 +682,14 @@ final class Sniper {
 			int lw = Minecraft.getInstance().font.width(label);
 			p.fill(x + 8 - lw / 2 - 3, y + 21, x + 8 + lw / 2 + 3, y + 32, 0xE0103010);
 			p.text(label, x + 8 - lw / 2, y + 23, 0xFF55FF55);
+			Alert la = latest();
+			String cd = view && la != null && now - la.at() < 60_000 ? countdown(graceMs(la.uuid())) : null;
+			if (cd != null) {                                                        // the hold, counted down on the button
+				boolean go = cd.equals("BUY NOW");
+				int cw = Minecraft.getInstance().font.width(cd);
+				p.fill(x + 8 - cw / 2 - 3, y - 16, x + 8 + cw / 2 + 3, y - 5, go ? 0xF0105010 : 0xF0402010);
+				p.text(cd, x + 8 - cw / 2, y - 14, go ? 0xFF55FF55 : 0xFFFFAA00);
+			}
 		}
 	}
 

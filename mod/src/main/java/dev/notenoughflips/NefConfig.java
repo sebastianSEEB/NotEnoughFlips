@@ -128,6 +128,9 @@ final class NefConfig {
 
 	boolean sniper = true;            // banner + ping when an undervalued BIN is listed (needs flipFeed for the reference prices)
 	double snipeMinPercent = 50;      // alert only when the BIN is at least this much under the lowest BIN of identical copies
+	boolean snipeBeats = true;        // count down a new BIN's hold with ticks (3, 2, 1) and a "go" sound at the moment it's buyable
+	int snipeGraceMs = 20_000;        // how long Hypixel holds a new BIN before anyone can buy it
+	int snipeBeatLeadMs = 40;         // play the beats this much early (sound takes a moment to reach you)
 	boolean snipeAutoOpen = false;    // open the auction (/viewauction) by itself on an alert; off by default (a command without a keypress could look like a macro to Hypixel)
 	// auto-open limits: an alert only opens the auction by itself when it is at least this far under the lowest BIN,
 	// makes at least this much after fees, costs at most this much (0 = what's in your purse), and (if set) has passed

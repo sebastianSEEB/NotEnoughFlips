@@ -115,7 +115,17 @@ final class AhScanner {
 	static InputStream page(int p) throws IOException, InterruptedException {
 		HttpRequest req = HttpRequest.newBuilder(URI.create(API + p)).timeout(Duration.ofSeconds(20))
 				.header("Accept-Encoding", "gzip").header("User-Agent", "NotEnoughFlips (Fabric mod)").GET().build();
+		long sent = System.currentTimeMillis();
 		HttpResponse<InputStream> resp = http.send(req, HttpResponse.BodyHandlers.ofInputStream());
+		long recv = System.currentTimeMillis();
+		resp.headers().firstValue("date").ifPresent(d -> {                 // Hypixel's clock, for the BIN-hold countdown
+			try {
+				ServerClock.sample(sent, recv, java.time.ZonedDateTime.parse(d, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME)
+						.toInstant().toEpochMilli());
+			} catch (RuntimeException ignored) {
+				// odd header: skip
+			}
+		});
 		if (resp.statusCode() != 200) throw new IOException("HTTP " + resp.statusCode() + " on page " + p);
 		InputStream in = resp.body();
 		boolean gz = resp.headers().firstValue("Content-Encoding").map(v -> v.contains("gzip")).orElse(false);

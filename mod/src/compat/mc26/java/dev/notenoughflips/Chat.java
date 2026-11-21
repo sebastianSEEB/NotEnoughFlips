@@ -27,6 +27,19 @@ final class Chat {
 		});
 	}
 
+	/** Snipe countdown: a short tick, or a high "go" when the BIN becomes buyable (next frame; NefConfig.snipeBeatLeadMs covers it). */
+	static void beat(boolean go) {
+		Minecraft mc = Minecraft.getInstance();
+		mc.execute(() -> {
+			try {
+				mc.getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(
+						go ? net.minecraft.sounds.SoundEvents.NOTE_BLOCK_PLING : net.minecraft.sounds.SoundEvents.NOTE_BLOCK_HAT, go ? 2.0F : 1.0F));
+			} catch (RuntimeException ignored) {
+				// no sound is fine
+			}
+		});
+	}
+
 	/** Runs a server command the player asked for (e.g. "viewauction <id>"), without the leading slash. */
 	static void command(String cmd) {
 		Minecraft mc = Minecraft.getInstance();

@@ -28,6 +28,8 @@ Click the banner to open the auction, or let the mod open it for you: at once or
 
 The DEALS button above your inventory lists every cheap BIN the mod found in its last AH scan. Click one to open it.
 
+New BINs can't be bought for their first 20 seconds. The mod counts that hold down by ear (three ticks, then a GO) on Hypixel's own clock, and shows it in tenths of a second on the Buy button, so you can click on the beat instead of reacting to it.
+
 ## Bazaar orders HUD
 
 Press O (change it in Controls → Key Binds) to show your bazaar orders at the top right of the screen while you play: buy orders on the left, sell offers on the right, each marked as top of the book, outbid/undercut or filled. Pick the size and how many orders to show in FLIP → Bazaar, or with `/nef orders size small|medium|large` and `/nef orders max 8`. Open /bz → Manage Orders once so the mod can read them.
