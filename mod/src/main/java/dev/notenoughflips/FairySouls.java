@@ -308,7 +308,8 @@ final class FairySouls {
 
 	private static void paint(Highlight.Painter p, int w, int h) {
 		Minecraft mc = Minecraft.getInstance();
-		if (mc.player == null || mc.screen != null && !(mc.screen instanceof net.minecraft.client.gui.screens.ChatScreen)) return;
+		var open = BidHelper.currentScreen();          // hidden behind menus, kept with chat open
+		if (mc.player == null || open != null && !(open instanceof net.minecraft.client.gui.screens.ChatScreen)) return;
 		String isl = island;
 		if (isl == null || !souls.containsKey(isl)) return;
 		List<int[]> left = left(isl);
