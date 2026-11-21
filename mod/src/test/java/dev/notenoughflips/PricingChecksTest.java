@@ -158,4 +158,21 @@ class PricingChecksTest {
 		boolean overlap = spot[0] < small[2] && spot[0] + spot[2] > small[0] && spot[1] < small[3] && spot[1] + h > small[1];
 		assertFalse(overlap, "chart overlaps a small tooltip");
 	}
+
+	@Test
+	void recombIsWorthWhatBuyersPayForItHere() {
+		String k = "TEST_NECKLACE";
+		MarketBook.begin();
+		MarketBook.observeSpec(k, 8_850_000, Spec.of(ea(5, false, 0, null, null)));
+		MarketBook.observeSpec(k, 9_900_000, Spec.of(ea(5, true, 0, null, null)));
+		MarketBook.finish(3);
+		assertEquals(1_050_000, MarketBook.premium(k, Spec::recomb), 1, "recombed necklaces are listed 1.05M above plain ones");
+		assertEquals(-1, MarketBook.premium(k, s -> s.stars() >= 9), 1e-9, "no copy with 9 stars listed: unknown");
+		java.util.List<Valuation.Part> parts = java.util.List.of(new Valuation.Part("recomb", 8_920_000), new Valuation.Part("gems", 38_000));
+		Valuation.Attrs a = new Valuation.Attrs();
+		a.stars = 5;
+		java.util.List<Valuation.Part> capped = Valuation.marketCapped(k, a, parts);
+		assertEquals(1_050_000, capped.get(0).coins(), 1, "recomb capped at the market premium, not the Recombobulator price");
+		assertEquals(38_000, capped.get(1).coins(), 1, "other parts unchanged");
+	}
 }

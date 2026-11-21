@@ -82,6 +82,22 @@ final class MarketBook {
 		b[i] = unit;
 	}
 
+	/**
+	 * Pure-ish: what one upgrade adds on this item in the listings right now: cheapest BIN of a copy that {@code has} it
+	 * minus the cheapest BIN of a copy that doesn't (never below 0). -1 when either side isn't listed (unknown).
+	 */
+	static double premium(String key, java.util.function.Predicate<Spec> has) {
+		Map<Spec, double[]> m = key == null ? null : specs.get(key);
+		if (m == null) return -1;
+		double with = Double.MAX_VALUE, without = Double.MAX_VALUE;
+		for (Map.Entry<Spec, double[]> e : m.entrySet()) {
+			double p = e.getValue()[0];
+			if (has.test(e.getKey())) with = Math.min(with, p);
+			else without = Math.min(without, p);
+		}
+		return with == Double.MAX_VALUE || without == Double.MAX_VALUE ? -1 : Math.max(0, with - without);
+	}
+
 	/** True once an AH scan has filled the copy-by-copy comparison. */
 	static boolean scanned() {
 		return !specs.isEmpty();

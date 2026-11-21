@@ -258,6 +258,25 @@ final class Valuation {
 		return out;
 	}
 
+	/**
+	 * What buyers really pay for an upgrade on THIS item, from what's listed right now: the cheapest copy with it minus
+	 * the cheapest copy without it. A recomb is "worth" a Recombobulator (8.9M) on paper, but if recombed necklaces are
+	 * listed 1M above plain ones, it adds 1M. Only ever lowers a part (the paper value stays the upper bound).
+	 */
+	static List<Part> marketCapped(String key, Attrs a, List<Part> parts) {
+		List<Part> out = new ArrayList<>(parts.size());
+		for (Part p : parts) {
+			double prem = switch (p.label()) {
+				case "recomb" -> MarketBook.premium(key, Spec::recomb);
+				case "stars" -> MarketBook.premium(key, s -> s.stars() >= a.stars);
+				case "potato books" -> MarketBook.premium(key, s -> s.hpb() >= a.hpb);
+				default -> -1;
+			};
+			out.add(prem >= 0 && prem < p.coins() ? new Part(p.label(), prem) : p);
+		}
+		return out;
+	}
+
 	/** Enchants anyone can put on from the enchanting table (up to level V): buyers don't pay extra for these. */
 	static final java.util.Set<String> TABLE = java.util.Set.of("PROTECTION", "GROWTH", "SHARPNESS", "SMITE", "BANE_OF_ARTHROPODS",
 			"CRITICAL", "FIRST_STRIKE", "GIANT_KILLER", "POWER", "SNIPE", "PUNCH", "FLAME", "INFINITE_QUIVER", "PIERCING", "AIMING",
@@ -309,7 +328,7 @@ final class Valuation {
 		if (model == null && !a.pet) model = MarketBook.model(key);       // plain-copy price from your own AH scan
 		JsonObject comp = data.components();
 		if (model == null || comp == null) return null;
-		List<Part> comps = components(a, comp);
+		List<Part> comps = a.pet ? components(a, comp) : marketCapped(key, a, components(a, comp));
 		List<Part> parts = new ArrayList<>();
 		double base, frac = 0;
 		String type = str(model, "type");

@@ -350,7 +350,8 @@ final class FlipPanel {
 			String name = Bazaar.name(f.id(), data);
 			String detail = String.format(Locale.ROOT, "%s× %s→%s · +%s · %s", HudFormatter.fmt((double) f.qty()),
 					HudFormatter.fmt(f.order()), HudFormatter.fmt(f.offer()), HudFormatter.fmt(f.totalProfit()), Market.dur(f.roundHours()))
-					+ Forecasts.tag(f.forecast(), f.adjSource());
+					+ Forecasts.tag(f.forecast(), f.adjSource())
+					+ (Bazaar.repriced(f.id()) ? " · offers pumped: sell priced at its 7-day level" : "");
 			String pc = String.format(Locale.ROOT, "%.1f%%", f.pct() * 100);
 			String rt = switch (cfg.bazaarSort == null ? "hour" : cfg.bazaarSort) {
 				case "profit" -> "+" + HudFormatter.fmt(f.totalProfit()) + " " + pc;

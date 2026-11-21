@@ -23,7 +23,14 @@ import java.util.Map;
  */
 final class Bazaar {
 	private static volatile List<Market.BzFlip> ranked = List.of();
-	private static volatile List<Market.BzFlip> passing = List.of();   // every flip that passed the checks, any order
+	private static volatile List<Market.BzFlip> passing = List.of();
+	private static volatile java.util.Set<String> repricedIds = java.util.Set.of();
+	private static final java.util.Set<String> repricedNow = new java.util.HashSet<>();
+
+	/** The sell offer of this flip is priced at the product's normal 7-day level (its offers are pumped right now). */
+	static boolean repriced(String id) {
+		return repricedIds.contains(id);
+	}   // every flip that passed the checks, any order
 	private static volatile long rankedAt;
 	private static volatile double rankedBudget = -1;
 	private static volatile Map<String, String> prettyNames = Map.of();
@@ -55,21 +62,40 @@ final class Bazaar {
 		List<Market.BzFlip> out = new ArrayList<>();
 		java.util.Set<String> event = eventMembers(data.bzSignals());
 		java.util.Set<String> rich = pumped(data.bzSignals());
+		int wideQueued = 0;
 		for (Map.Entry<String, DataClient.Live> e : all.entrySet()) {
 			if (event.contains(e.getKey())) continue;             // part of a market event (crash / pump): old spreads are no guide
-			if (rich.contains(e.getKey())) continue;              // priced far above its peers right now: don't buy into it
 			DataClient.Live l = e.getValue();
 			double[] normal = data.bazaarNormalCached(e.getKey());
-			if (trap(l, normal) != null) continue;                 // pumped or crashing vs its own 7-day level
+			String why = trap(l, normal);
+			boolean repriced = false;
+			if (why != null && why.startsWith("pumped") && l.sell() <= normal[1] * 1.5 && l.buy() > normal[0]) {
+				// only the sell-offer side jumped: you buy at today's low order price anyway, so price the sale at its
+				// normal 7-day level instead of the pumped one (and only keep it if that still pays)
+				DataClient.Live n = new DataClient.Live(normal[0], l.sell(), l.ts(), l.buyWeek(), l.sellWeek(), l.offers(), l.orders(),
+						l.nearOffers(), l.nearOrders());
+				if (trap(n, normal) == null) {
+					l = n;
+					repriced = true;
+					why = null;
+				}
+			}
+			if (why != null) continue;                             // crashing, pulled order, or pumped on both sides
+			if (!repriced && rich.contains(e.getKey())) continue;  // priced far above its peers right now: don't buy into it
 			double npc = NpcPrices.price(e.getKey());
 			if (npc > 0 && l.buy() > npc) continue;                 // an NPC sells it cheaper than your sell offer would be
 			Market.BzFlip f = flip(cfg, e.getKey(), l, budget);
+			if (f != null && normal == null && f.pct() > cfg.bazaarMaxSpreadPercent / 100.0 && wideQueued++ < 20 && f.unitsPerHour() >= 100)
+				data.bazaarNormal(e.getKey());                     // wide spread, no 7-day level yet: fetch it, re-check next refresh
 			if (f == null || f.perUnit() <= 0 || f.pct() < 0.02 || f.pct() > cfg.bazaarMaxSpreadPercent / 100.0) continue;
 			if (f.unitsPerHour() < 10 || f.qty() < 1 || f.totalProfit() < 1000) continue;
 			if (Math.min(f.buyFillPerHour(), f.sellFillPerHour()) < 10 || f.balance() < 0.2) continue;   // must buy AND sell fast
 			if (f.roundHours() > Math.max(0.25, cfg.bazaarRoundHours) * 1.05) continue;
 			out.add(f);
+			if (repriced) repricedNow.add(f.id());
 		}
+		repricedIds = java.util.Set.copyOf(repricedNow);
+		repricedNow.clear();
 		out.sort((a, b) -> Double.compare(b.coinsPerHour(), a.coinsPerHour()));
 		for (int i = 0; i < Math.min(25, out.size()); i++) data.bazaarSlide(out.get(i).id());   // queue 7-day trends for the top
 		for (int i = 0; i < Math.min(40, out.size()); i++) data.bazaarNormal(out.get(i).id());  // and their normal level (trap check)
