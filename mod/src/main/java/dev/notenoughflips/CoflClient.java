@@ -53,8 +53,47 @@ final class CoflClient {
 		t.setDaemon(true);
 		return t;
 	});
-	private volatile long nextSlot = 0;
 	private volatile long blockedUntil = 0;
+
+	/**
+	 * Request priority. One line to SkyCofl (≈ 85 requests/min, under its 100/min limit), but the most important request
+	 * always goes next: a snipe being checked, then what you're hovering / the chart, then items visible on the AH page,
+	 * then background prefetching. Background work never uses the last few request "tokens", so a snipe or a hover is
+	 * sent at once instead of waiting behind dozens of queued background fetches.
+	 */
+	enum Pri { URGENT, HIGH, VISIBLE, LOW }
+
+	private static final class Req {
+		final String url;
+		Pri pri;
+		long seq;
+		final long at;
+		final CompletableFuture<JsonElement> f = new CompletableFuture<>();
+
+		Req(String url, Pri pri, long seq, long at) {
+			this.url = url;
+			this.pri = pri;
+			this.seq = seq;
+			this.at = at;
+		}
+	}
+
+	/** A background request dropped from a full line (or too old); nothing is cached for it, so a hover refetches at once. */
+	static final class Dropped extends RuntimeException {
+		Dropped() {
+			super("dropped", null, false, false);
+		}
+	}
+
+	static final int BURST = 4;                 // tokens: a snipe's two requests + a hover go out without waiting
+	static final long REFILL_MS = 700;          // one token per 0.7 s ≈ 85/min (+ the burst stays under 100/min)
+	static final int BACKGROUND_MAX = 40;       // queued background requests kept (oldest dropped first)
+	static final long BACKGROUND_MAX_AGE_MS = 90_000L;
+
+	private final Map<String, Req> pending = new java.util.LinkedHashMap<>();   // by URL, guarded by itself
+	private double tokens = BURST;
+	private long tokensAt = System.currentTimeMillis();
+	private long seq;
 
 	// low-priority prefetch: sales histories of items the sniper may alert on, fetched only while SkyCofl is idle,
 	// so a snipe's ✓ check is instant; histories are kept on disk so they're there right after a restart
@@ -72,6 +111,13 @@ final class CoflClient {
 				// next tick
 			}
 		}, 10, 2, TimeUnit.SECONDS);
+		queue.scheduleAtFixedRate(() -> {
+			try {
+				pump();
+			} catch (RuntimeException ignored) {
+				// next tick
+			}
+		}, 50, 50, TimeUnit.MILLISECONDS);
 	}
 
 	private final java.util.Set<String> urgentInFlight = ConcurrentHashMap.newKeySet();
@@ -87,8 +133,8 @@ final class CoflClient {
 		long now = System.currentTimeMillis();
 		if (e != null && e.history() != null && now - e.at() < WARM_FRESH_MS) return;
 		if (!urgentInFlight.add(key)) return;
-		CompletableFuture<JsonElement> hist = get(url(key, "/history/week"), true);
-		CompletableFuture<JsonElement> bin = get(url(key, "/bin"), true);
+		CompletableFuture<JsonElement> hist = get(url(key, "/history/week"), Pri.URGENT);   // joins a queued fetch of the same URL
+		CompletableFuture<JsonElement> bin = get(url(key, "/bin"), Pri.URGENT);
 		hist.handle((h, err) -> {
 			if (err == null && h != null && h.isJsonArray()) {
 				Entry old = cache.get(key);
@@ -115,7 +161,7 @@ final class CoflClient {
 	private void warmTick() {
 		long now = System.currentTimeMillis();
 		if (now - savedAt > 5 * 60_000L) save();
-		if (cfg == null || !cfg.coflFallback || now < Math.max(nextSlot, blockedUntil) || !inFlight.isEmpty()) return;
+		if (cfg == null || !cfg.coflFallback || now < blockedUntil || queued() > 0) return;
 		String key = null;
 		synchronized (warm) {
 			java.util.Iterator<String> it = warm.iterator();
@@ -128,7 +174,7 @@ final class CoflClient {
 		}
 		if (key == null || inFlight.putIfAbsent(key, true) != null) return;
 		final String k = key;
-		get(url(k, "/history/week")).handle((h, err) -> {
+		get(url(k, "/history/week"), Pri.LOW).handle((h, err) -> {
 			if (err == null && h != null && h.isJsonArray()) {
 				Entry old = cache.get(k);
 				cache.put(k, new Entry(System.currentTimeMillis(), h.getAsJsonArray(), old == null ? 0 : old.binAt(),
@@ -237,40 +283,136 @@ final class CoflClient {
 		return BASE + URLEncoder.encode(tag, StandardCharsets.UTF_8) + endpoint + query;
 	}
 
-	private CompletableFuture<JsonElement> get(String url) {
-		return get(url, false);
-	}
-
-	/** urgent = a snipe is waiting: sent right away instead of after the queued requests (the queue moves back one slot). */
-	private CompletableFuture<JsonElement> get(String url, boolean urgent) {
+	/** Queue a GET (one per URL: asking again joins it, at the higher of the two priorities). */
+	private CompletableFuture<JsonElement> get(String url, Pri pri) {
 		long now = System.currentTimeMillis();
 		if (now < blockedUntil) return CompletableFuture.failedFuture(new IllegalStateException("rate limited"));
-		long slot;
-		synchronized (this) {
-			slot = urgent ? now : Math.max(now, nextSlot);
-			nextSlot = Math.max(nextSlot, now) + 700;       // ≈ 85 requests/min, under SkyCofl's 100/min (urgent ones count too)
+		Req r;
+		synchronized (pending) {
+			r = pending.get(url);
+			if (r != null) {
+				if (pri.ordinal() < r.pri.ordinal()) r.pri = pri;
+				if (pri == r.pri) r.seq = seq++;              // asked again just now: counts as the newest of its kind
+				return r.f;
+			}
+			if (pri == Pri.LOW && countLow() >= BACKGROUND_MAX) dropOldestLow();
+			r = new Req(url, pri, seq++, now);
+			pending.put(url, r);
 		}
-		CompletableFuture<JsonElement> f = new CompletableFuture<>();
-		queue.schedule(() -> {
-			HttpRequest req = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(10))
-					.header("User-Agent", "NotEnoughFlips (Fabric mod)").GET().build();
-			http.sendAsync(req, HttpResponse.BodyHandlers.ofString()).whenComplete((resp, err) -> {
-				if (err != null) { f.completeExceptionally(err); return; }
-				if (resp.statusCode() == 429) {
-					blockedUntil = System.currentTimeMillis() + 60_000L;
-					f.completeExceptionally(new IllegalStateException("429"));
-					return;
+		queue.execute(this::pump);
+		return r.f;
+	}
+
+	/** Move an item's queued requests up (e.g. you hover something whose prices were waiting as background work). */
+	private void bump(String key, Pri pri) {
+		boolean moved = false;
+		synchronized (pending) {
+			for (String u : new String[]{url(key, "/history/week"), url(key, "/bin")}) {
+				Req r = pending.get(u);
+				if (r == null || pri.ordinal() > r.pri.ordinal()) continue;
+				if (pri.ordinal() < r.pri.ordinal()) moved = true;
+				r.pri = pri;
+				r.seq = seq++;
+			}
+		}
+		if (moved) queue.execute(this::pump);
+	}
+
+	/** Requests waiting for SkyCofl. */
+	int queued() {
+		synchronized (pending) {
+			return pending.size();
+		}
+	}
+
+	private int countLow() {
+		int n = 0;
+		for (Req r : pending.values()) if (r.pri == Pri.LOW) n++;
+		return n;
+	}
+
+	private void dropOldestLow() {
+		for (java.util.Iterator<Req> it = pending.values().iterator(); it.hasNext(); ) {
+			Req r = it.next();
+			if (r.pri == Pri.LOW) {
+				it.remove();
+				r.f.completeExceptionally(new Dropped());
+				return;
+			}
+		}
+	}
+
+	/** Tokens a priority needs before it may be sent: background leaves the last few for snipes and hovers. */
+	static int need(Pri p) {
+		return switch (p) {
+			case URGENT, HIGH -> 1;
+			case VISIBLE -> 2;
+			case LOW -> 3;
+		};
+	}
+
+	/**
+	 * The next request to send: best priority first. Within hovers and the AH page the newest goes first (what you're
+	 * looking at now, not what the mouse passed over); snipes and background work go oldest first. Pure, for tests.
+	 */
+	static <T> T pick(java.util.Collection<T> reqs, java.util.function.Function<T, Pri> pri, java.util.function.ToLongFunction<T> order) {
+		T best = null;
+		for (T r : reqs) {
+			if (best == null) { best = r; continue; }
+			Pri a = pri.apply(r), b = pri.apply(best);
+			if (a.ordinal() != b.ordinal()) { if (a.ordinal() < b.ordinal()) best = r; continue; }
+			boolean newestFirst = a == Pri.HIGH || a == Pri.VISIBLE;
+			long x = order.applyAsLong(r), y = order.applyAsLong(best);
+			if (newestFirst ? x > y : x < y) best = r;
+		}
+		return best;
+	}
+
+	/** Send whatever the rate limit allows, most important first. Runs on the SkyCofl thread. */
+	private void pump() {
+		long now = System.currentTimeMillis();
+		java.util.List<Req> send = new java.util.ArrayList<>();
+		synchronized (pending) {
+			tokens = Math.min(BURST, tokens + (now - tokensAt) / (double) REFILL_MS);
+			tokensAt = now;
+			for (java.util.Iterator<Req> it = pending.values().iterator(); it.hasNext(); ) {
+				Req r = it.next();
+				if (r.pri == Pri.LOW && now - r.at > BACKGROUND_MAX_AGE_MS) {   // stale background work: not worth the slot
+					it.remove();
+					r.f.completeExceptionally(new Dropped());
 				}
-				if (resp.statusCode() == 404 || resp.statusCode() == 204) { f.complete(null); return; }
-				if (resp.statusCode() != 200) { f.completeExceptionally(new IllegalStateException("HTTP " + resp.statusCode())); return; }
-				try {
-					f.complete(JsonParser.parseString(resp.body()));
-				} catch (RuntimeException e) {
-					f.completeExceptionally(e);
-				}
-			});
-		}, slot - now, TimeUnit.MILLISECONDS);
-		return f;
+			}
+			if (now < blockedUntil) return;
+			while (!pending.isEmpty()) {
+				Req r = pick(pending.values(), q -> q.pri, q -> q.seq);
+				if (tokens < need(r.pri)) break;
+				tokens -= 1;
+				pending.remove(r.url);
+				send.add(r);
+			}
+		}
+		for (Req r : send) send(r);
+	}
+
+	private void send(Req r) {
+		CompletableFuture<JsonElement> f = r.f;
+		HttpRequest req = HttpRequest.newBuilder(URI.create(r.url)).timeout(Duration.ofSeconds(10))
+				.header("User-Agent", "NotEnoughFlips (Fabric mod)").GET().build();
+		http.sendAsync(req, HttpResponse.BodyHandlers.ofString()).whenComplete((resp, err) -> {
+			if (err != null) { f.completeExceptionally(err); return; }
+			if (resp.statusCode() == 429) {
+				blockedUntil = System.currentTimeMillis() + 60_000L;
+				f.completeExceptionally(new IllegalStateException("429"));
+				return;
+			}
+			if (resp.statusCode() == 404 || resp.statusCode() == 204) { f.complete(null); return; }
+			if (resp.statusCode() != 200) { f.completeExceptionally(new IllegalStateException("HTTP " + resp.statusCode())); return; }
+			try {
+				f.complete(JsonParser.parseString(resp.body()));
+			} catch (RuntimeException e) {
+				f.completeExceptionally(e);
+			}
+		});
 	}
 
 	/**
@@ -278,11 +420,19 @@ final class CoflClient {
 	 * @param fetch false = only use what's cached (for the many items the yellow-border check looks at)
 	 */
 	JsonObject doc(String key, boolean fetch) {
+		return doc(key, fetch ? Pri.HIGH : null);
+	}
+
+	/** @param pri null = only what's cached; otherwise fetch (or move an already queued fetch up) at this priority */
+	JsonObject doc(String key, Pri pri) {
 		if (cfg == null || !cfg.coflFallback || key == null) return null;
 		Entry e = cache.get(key);
 		long now = System.currentTimeMillis();
 		boolean stale = e == null || now - e.at() > TTL_MS || (e.bin() != null || !e.empty()) && now - e.binAt() > BIN_TTL_MS;
-		if (fetch && stale && inFlight.putIfAbsent(key, true) == null) refresh(key, e);
+		if (pri != null && stale) {
+			if (inFlight.putIfAbsent(key, true) == null) refresh(key, e, pri);
+			else bump(key, pri);
+		}
 		if (e == null || e.empty()) return null;
 		return build(key, e);
 	}
@@ -366,38 +516,59 @@ final class CoflClient {
 
 	/** Any other SkyCofl GET through the same rate limiter (so all requests together stay under 100/min). */
 	CompletableFuture<JsonElement> raw(String url) {
-		return get(url);
+		return get(url, Pri.LOW);
 	}
 
 	boolean loading(String key) {
 		return inFlight.containsKey(key) && !cache.containsKey(key);
 	}
 
-	private void refresh(String key, Entry old) {
+	private void refresh(String key, Entry old, Pri pri) {
 		long now = System.currentTimeMillis();
 		boolean needHistory = old == null || now - old.at() > TTL_MS;
-		CompletableFuture<JsonElement> hist = needHistory ? get(url(key, "/history/week"))
+		// history and BIN prices are queued together, so both arrive in about one request's time
+		CompletableFuture<JsonElement> hist = needHistory ? get(url(key, "/history/week"), pri)
 				: CompletableFuture.completedFuture(old.history());
-		boolean[] histFailed = {false};
-		hist.handle((h, err) -> {
-					if (err == null) return h;
-					histFailed[0] = true;                       // busy / rate limited: keep what we had, retry in a minute
-					return old == null ? null : old.history();
-				})
-				.thenCompose(h -> get(url(key, "/bin")).handle((b, err) -> {
-					JsonArray ha = h != null && h.isJsonArray() ? h.getAsJsonArray() : null;
-					JsonObject bo = b != null && b.isJsonObject() ? b.getAsJsonObject() : (old == null ? null : old.bin());
-					boolean empty = (ha == null || ha.isEmpty()) && (bo == null || HudFormatter.num(bo, "lowest") == null
-							|| HudFormatter.num(bo, "lowest") <= 0);
-					long at = !needHistory ? old.at()
-							: histFailed[0] ? (old != null ? old.at() : System.currentTimeMillis() - TTL_MS + 60_000L)
-							: System.currentTimeMillis();
-					if (histFailed[0]) failedAt.put(key, System.currentTimeMillis());
-					else failedAt.remove(key);
-					cache.put(key, new Entry(at, ha, System.currentTimeMillis(), bo, empty && !histFailed[0]));
-					return null;
-				}))
-				.whenComplete((v, err) -> inFlight.remove(key));
+		CompletableFuture<JsonElement> bin = get(url(key, "/bin"), pri);
+		Object[] h = new Object[2], b = new Object[2];      // {value, error}
+		CompletableFuture.allOf(
+				hist.handle((v, err) -> { h[0] = v; h[1] = err; return null; }),
+				bin.handle((v, err) -> { b[0] = v; b[1] = err; return null; })
+		).whenComplete((v, err) -> {
+			try {
+				if (dropped((Throwable) h[1]) || dropped((Throwable) b[1])) return;   // background work skipped: cache nothing
+				boolean histFailed = h[1] != null;
+				JsonElement he = histFailed ? (old == null ? null : old.history()) : (JsonElement) h[0];
+				JsonElement be = (JsonElement) b[0];
+				JsonArray ha = he != null && he.isJsonArray() ? he.getAsJsonArray() : null;
+				JsonObject bo = be != null && be.isJsonObject() ? be.getAsJsonObject() : (old == null ? null : old.bin());
+				boolean empty = (ha == null || ha.isEmpty()) && (bo == null || HudFormatter.num(bo, "lowest") == null
+						|| HudFormatter.num(bo, "lowest") <= 0);
+				long at = !needHistory ? old.at()
+						: histFailed ? (old != null ? old.at() : System.currentTimeMillis() - TTL_MS + 60_000L)
+						: System.currentTimeMillis();
+				if (histFailed) failedAt.put(key, System.currentTimeMillis());
+				else failedAt.remove(key);
+				cache.put(key, new Entry(at, ha, System.currentTimeMillis(), bo, empty && !histFailed));
+			} finally {
+				inFlight.remove(key);
+			}
+		});
+	}
+
+	private static boolean dropped(Throwable t) {
+		while (t instanceof java.util.concurrent.CompletionException && t.getCause() != null) t = t.getCause();
+		return t instanceof Dropped;
+	}
+
+	/** Where an item's SkyCofl prices stand: "ready", "loading", "empty" (SkyCofl has no sales), "failed" or "none". */
+	String state(String key) {
+		Entry e = key == null ? null : cache.get(key);
+		if (e != null && e.history() != null && !e.history().isEmpty()) return "ready";
+		if (inFlight.containsKey(key) || urgentInFlight.contains(key)) return "loading";
+		if (e != null && e.empty()) return "empty";
+		if (failed(key)) return "failed";
+		return "none";
 	}
 
 	private static long time(JsonObject o) {

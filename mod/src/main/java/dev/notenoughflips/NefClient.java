@@ -581,12 +581,17 @@ public final class NefClient implements ClientModInitializer {
 	 * @param fetch false = never start a SkyCofl request (used for the many items the border check scans)
 	 */
 	static JsonObject docFor(String key, boolean fetch) {
+		return docFor(key, fetch ? CoflClient.Pri.HIGH : null);
+	}
+
+	/** Same, fetching missing SkyCofl prices at this priority (null = cached only). */
+	static JsonObject docFor(String key, CoflClient.Pri pri) {
 		DataClient.Doc d = data.doc(key);
 		JsonObject own = d == null ? null : d.json();
 		if (own != null && !CoflClient.thin(own)) return own;
-		if (d == null && !fetch) return null;
+		if (d == null && pri == null) return null;
 		if (own == null && d != null && data.live(key) != null) return null;   // a bazaar product we don't have
-		JsonObject c = cofl.doc(key, fetch);
+		JsonObject c = cofl.doc(key, pri);
 		if (c == null) return own;
 		JsonObject model = HudFormatter.obj(own, "market", "model");
 		if (model != null) HudFormatter.obj(c, "market").add("model", model);   // keep our per-copy valuation model

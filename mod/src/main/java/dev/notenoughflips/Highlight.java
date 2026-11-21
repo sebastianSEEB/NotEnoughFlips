@@ -60,7 +60,7 @@ final class Highlight {
 		if (now - warmFrom > 20_000) { warmFrom = now; warmed = 0; }
 		if (warmed < 12) {
 			warmed++;
-			return NefClient.docFor(key, true);
+			return NefClient.docFor(key, CoflClient.Pri.VISIBLE);
 		}
 		return null;
 	}   // level: 0 none, 1 worth it, 2 strong deal

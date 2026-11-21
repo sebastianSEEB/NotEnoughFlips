@@ -174,8 +174,7 @@ final class Sniper {
 			String k = keys.get(warmIdx++);
 			if (NefClient.cofl.week(k, false) != null) continue;
 			warmAt = now;
-			NefClient.docFor(k, true);
-			NefClient.cofl.week(k, true);
+			NefClient.cofl.doc(k, CoflClient.Pri.LOW);      // background: never ahead of a snipe or a hover
 			return;
 		}
 	}
@@ -260,12 +259,22 @@ final class Sniper {
 			if (prov == null) return;
 			fire(prov);
 			synchronized (pending) {
-				pending.add(new Object[]{pre, System.currentTimeMillis()});
+				pending.add(new Object[]{pre, System.currentTimeMillis(), System.currentTimeMillis()});
 			}
 		} else if (v instanceof Alert al) fire(al);
 	}
 
-	/** Re-check alerts that went out as "checking…" (no history within 30 s = ✗). */
+	/**
+	 * Stop waiting for a snipe's sales history: SkyCofl answered with none (after 5 s, in case the BIN prices are still
+	 * coming), or nothing came in 30 s, or 90 s while a request is still on its way.
+	 */
+	static boolean giveUp(long ageMs, String state) {
+		if ("empty".equals(state)) return ageMs > 5_000L;
+		if ("loading".equals(state)) return ageMs > 90_000L;
+		return ageMs > 30_000L;
+	}
+
+	/** Re-check alerts that went out as "checking…". */
 	private static void retryPending() {
 		List<Object[]> todo;
 		synchronized (pending) {
@@ -278,8 +287,18 @@ final class Sniper {
 			Pre pre = (Pre) p[0];
 			Object v = evaluate(pre, cfg);
 			if (v == PENDING) {
-				if (now - (long) p[1] < 30_000L) synchronized (pending) { pending.add(p); }
-				else update(pre.uuid(), "bad: no sales history to check it against");
+				long age = now - (long) p[1];
+				String st = NefClient.cofl == null ? "none" : NefClient.cofl.state(pre.key());
+				if (giveUp(age, st)) {
+					update(pre.uuid(), "empty".equals(st) || "ready".equals(st) ? "bad: no sales history to check it against"
+							: "bad: couldn't load its sales history in time (SkyCofl busy), check it yourself");
+					continue;
+				}
+				if (!"loading".equals(st) && now - (long) p[2] > 5_000L && NefClient.cofl != null) {   // a fetch failed: try again
+					p[2] = now;
+					NefClient.cofl.urgent(pre.key());
+				}
+				synchronized (pending) { pending.add(p); }
 			} else if (v instanceof Alert al) update(pre.uuid(), "ok", al);
 			else update(pre.uuid(), "bad: " + v);
 		}

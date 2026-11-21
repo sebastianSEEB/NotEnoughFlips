@@ -175,7 +175,7 @@ final class FlipFeed {
 		candidates = out;
 		scanAt = ts;
 		building = new HashMap<>();
-		for (int i = 0; i < Math.min(40, out.size()); i++) NefClient.docFor(out.get(i).key(), true);   // warm prices (SkyCofl is rate limited)
+		for (int i = 0; i < Math.min(40, out.size()); i++) NefClient.docFor(out.get(i).key(), CoflClient.Pri.LOW);   // warm prices (SkyCofl is rate limited)
 	}
 
 	private static Candidate candidate(String bucketKey, Bucket b, long ts) {

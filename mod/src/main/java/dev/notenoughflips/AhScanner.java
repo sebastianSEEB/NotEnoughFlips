@@ -236,7 +236,7 @@ final class AhScanner {
 			} catch (Exception ignored) {
 				// unknown item: still counted, without a value
 			}
-			if (key[0] != null) NefClient.docFor(key[0], true);      // warm prices for next time / the tooltip
+			if (key[0] != null) NefClient.docFor(key[0], CoflClient.Pri.LOW);      // warm prices for next time / the tooltip
 			Double unitVal = value(key[0], a.has("item_name") ? a.get("item_name").getAsString() : null);
 			Double val = unitVal == null ? null : unitVal * count[0];
 			double top = num(a, "highest_bid_amount");
