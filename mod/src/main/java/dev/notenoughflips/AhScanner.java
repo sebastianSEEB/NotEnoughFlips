@@ -137,6 +137,7 @@ final class AhScanner {
 		long now = System.currentTimeMillis();
 		MarketBook.begin();
 		NpcFlips.begin();
+		EndingSoon.begin();
 		if (feed) FlipFeed.begin();
 		int pages = 1;
 		long updated = 0;
@@ -153,7 +154,10 @@ final class AhScanner {
 							while (r.hasNext()) {
 								JsonObject a = JsonParser.parseReader(r).getAsJsonObject();
 								if (involves(a, me)) mine.add(a);
-								else FlipFeed.collect(a, now, feed);          // every other BIN: market book (+ flip feed)
+								else {
+									FlipFeed.collect(a, now, feed);          // every other BIN: market book (+ flip feed)
+									EndingSoon.observe(a, now);               // regular auctions ending soon, under value
+								}
 							}
 							r.endArray();
 						}
@@ -166,6 +170,7 @@ final class AhScanner {
 		}
 		MarketBook.finish(updated > 0 ? updated : System.currentTimeMillis());   // first: your listings are checked against it
 		NpcFlips.finish();
+		EndingSoon.finish();
 		try {
 			PriceAlerts.check();                                          // fresh lowest BINs: your price alerts
 		} catch (RuntimeException ignored) {

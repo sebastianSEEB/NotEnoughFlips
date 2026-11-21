@@ -65,7 +65,9 @@ final class Sniper {
 	}
 
 	/** Cheap first look at a listing: item, identical-copy bucket, and whether it's at most half the lowest BIN. */
-	record Pre(String uuid, String key, String bucket, long count, double total, double unit, double[] ref, String name, Spec spec) {}
+	/** upgrade = priced near a plain copy but carrying upgrades: valued on copies as upgraded, not on the lowest BIN. */
+	record Pre(String uuid, String key, String bucket, long count, double total, double unit, double[] ref, String name, Spec spec,
+			Valuation.Attrs attrs, boolean upgrade) {}
 
 	/** bucket (item#variant) → {cheapest, reference = min(2nd, median 2nd–5th), listed} from the last full scan. */
 	private static volatile Map<String, double[]> refs = Map.of();
@@ -441,8 +443,9 @@ final class Sniper {
 		int[] count = {1};
 		String[] variant = {""};
 		Spec[] spec = {null};
+		Valuation.Attrs[] attrs = {null};
 		try {
-			AhScanner.identify(a.get("item_bytes").getAsString(), key, count, variant, spec);
+			AhScanner.identify(a.get("item_bytes").getAsString(), key, count, variant, spec, attrs);
 		} catch (Exception e) {
 			return null;
 		}
@@ -454,9 +457,17 @@ final class Sniper {
 		long n = Math.max(1, count[0]);
 		double unit = (double) total / n;
 		double need = Math.max(0, Math.min(0.95, cfg.snipeMinPercent / 100.0));
-		if (unit > r[0] * (1 - need)) return null;                    // e.g. 50 % → at most half the lowest BIN
+		Spec sp = n == 1 ? spec[0] : null;
+		boolean upgrade = false;
+		if (unit > r[0] * (1 - need)) {                                // e.g. 50 % → at most half the lowest BIN
+			// not cheap for the item, but maybe for its upgrades: macros compare with the lowest BIN and skip these
+			if (!cfg.snipeUpgrades || sp == null || !upgraded(sp)) return null;
+			double[] c = MarketBook.cover(k, sp, unit);
+			if (c == null || c[1] < 2 || unit > c[0] * (1 - need)) return null;   // ≥ 2 copies as upgraded listed, all well above
+			upgrade = true;
+		}
 		String name = a.has("item_name") ? a.get("item_name").getAsString().replaceAll("§.", "") : k;
-		return new Pre(a.get("uuid").getAsString(), k, bucket, n, total, unit, r, name, n == 1 ? spec[0] : null);
+		return new Pre(a.get("uuid").getAsString(), k, bucket, n, total, unit, r, name, sp, n == 1 ? attrs[0] : null, upgrade);
 	}
 
 	/** An Alert ("ok"), PENDING (history loading), or a String reason why it's not a buy. */
@@ -476,20 +487,28 @@ final class Sniper {
 		if (fair == null || fair <= 0 || floor <= 0) return "no real sales to price it against";
 		// the "lowest BIN" itself can be the manipulation (cheap copies bought out, the rest relisted high)
 		if (r[0] > Math.min(fair, floor) * 1.5) return "the lowest BIN is inflated vs real sales (" + HudFormatter.fmt(Math.min(fair, floor)) + ")";
-		double resale = Math.min(Market.undercut(ref), Math.min(fair, Market.undercut(floor)));
+		double resale;
 		double cov = coverPrice(p);
-		if (cov > 0) resale = Math.min(resale, Market.undercut(cov));     // a copy with the same or better upgrades is cheaper
+		if (p.upgrade()) {                                             // worth = what copies as upgraded go for, capped by its parts
+			if (cov <= 0) return "no copy as upgraded is listed any more";
+			Valuation.Estimate est = p.attrs() == null ? null : Valuation.estimate(d, p.key(), p.attrs(), p.unit());
+			if (est == null || est.value() <= 0) return "its upgrades can't be priced";
+			resale = Math.min(Market.undercut(cov), est.value());
+		} else {
+			resale = Math.min(Market.undercut(ref), Math.min(fair, Market.undercut(floor)));
+			if (cov > 0) resale = Math.min(resale, Market.undercut(cov));     // a copy with the same or better upgrades is cheaper
+		}
 		double npc = NpcPrices.price(p.key());
 		if (npc > 0) resale = Math.min(resale, npc);                      // an NPC sells it for less: nobody pays more
 		double profit = Verdict.netAfterFees(resale * p.count()) - p.total();
 		double pct = profit / p.total();
-		if (profit < cfg.minFlipProfitCoins || pct < 0.05) return "too little profit after fees at real sale prices";
-		synchronized (Sniper.class) {                                  // the new copy is now the cheapest one
+		if (profit < cfg.minFlipProfitCoins || pct < (p.upgrade() ? 0.15 : 0.05)) return "too little profit after fees at real sale prices";
+		if (!p.upgrade()) synchronized (Sniper.class) {                // the new copy is now the cheapest one
 			Map<String, double[]> m = new HashMap<>(refs);
 			m.put(p.bucket(), new double[]{p.unit(), ref, r[2] + 1});
 			refs = m;
 		}
-		return new Alert(p.uuid(), p.name(), p.key(), p.count(), p.total(), resale * p.count(), profit, pct, "ok", System.currentTimeMillis());
+		return new Alert(p.uuid(), p.upgrade() ? "⬆ " + p.name() : p.name(), p.key(), p.count(), p.total(), resale * p.count(), profit, pct, "ok", System.currentTimeMillis());
 	}
 
 	/** The instant alert while history loads: resale just under the next copies, still has to clear the profit bar. */
@@ -506,6 +525,11 @@ final class Sniper {
 	}
 
 	/** Cheapest other BIN of a copy with the same or better upgrades (0 = none / unknown). */
+	/** Has anything that makes a copy worth more than a plain one (stars, recomb, potato books, gems, big enchants, extras). */
+	static boolean upgraded(Spec sp) {
+		return sp.stars() > 0 || sp.recomb() || sp.hpb() > 0 || !sp.gems().isEmpty() || !sp.big().isEmpty() || !sp.extras().isEmpty();
+	}
+
 	private static double coverPrice(Pre p) {
 		double[] c = p.spec() == null ? null : MarketBook.cover(p.key(), p.spec(), p.unit());
 		return c == null ? 0 : c[0];

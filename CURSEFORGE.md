@@ -30,6 +30,8 @@ The DEALS button above your inventory lists every cheap BIN the mod found in its
 
 New BINs can't be bought for their first 20 seconds. The mod counts that hold down by ear (three ticks, then a GO) on Hypixel's own clock, and shows it in tenths of a second on the Buy button, so you can click on the beat instead of reacting to it.
 
+It also looks where macros don't. Upgrade snipes catch copies priced like a plain one but carrying stars, a recomb, gems or big enchants worth much more. Ending-auction alerts point out regular auctions about to end well under value, with the most you can bid and still profit.
+
 ## Bazaar orders HUD
 
 Press O (change it in Controls → Key Binds) to show your bazaar orders at the top right of the screen while you play: buy orders on the left, sell offers on the right, each marked as top of the book, outbid/undercut or filled. Pick the size and how many orders to show in FLIP → Bazaar, or with `/nef orders size small|medium|large` and `/nef orders max 8`. Open /bz → Manage Orders once so the mod can read them.
@@ -116,6 +118,7 @@ A free Hypixel API key (developer.hypixel.net) turns on the bidder check and add
 | `/nef settings` | Every option in one place |
 | `/nef session` | Profit this session and per hour |
 | `/nef alert under\|over <price> <item>` | Your own price alerts (`list`, `remove <n>`, `clear`) |
+| `/nef ending on\|off` | Alerts for regular auctions ending under value |
 | `/nef souls` | Fairy Soul markers: `on`/`off`, `reset` (show this island's again), `allfound` |
 | `/nef minvalue <amount>` | Ignore items worth less than this (1M by default, `0` = any) |
 | `/nef bztax <percent>` | Your bazaar tax (1.25 by default, lower with the Bazaar Flipper upgrade) |

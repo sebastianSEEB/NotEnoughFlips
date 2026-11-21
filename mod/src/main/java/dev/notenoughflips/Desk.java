@@ -369,6 +369,8 @@ final class Desk {
 							cfg.snipeOpenChecked = i == 2;
 						});
 				ly = onOff(p, x, ly, lw, "Countdown beats", cfg.snipeBeats, v -> cfg.snipeBeats = v);
+				ly = onOff(p, x, ly, lw, "Upgrade snipes", cfg.snipeUpgrades, v -> cfg.snipeUpgrades = v);
+				ly = onOff(p, x, ly, lw, "Ending auctions", cfg.endingAlerts, v -> cfg.endingAlerts = v);
 				p.text(FcfPanel.fit("Opening by itself sends /viewauction without a keypress: off is the safest.", w), x, ly + 2, MUTED);
 			}
 			case "bz" -> {

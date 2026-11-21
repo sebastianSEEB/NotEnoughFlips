@@ -100,6 +100,7 @@ public final class NefClient implements ClientModInitializer {
 		FcfPanel.init(config, data);
 		Desk.init(config, data);
 		FairySouls.init(config);
+		EndingSoon.init(config);
 		String version = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("notenoughflips")
 				.map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse("?");
 		System.out.println("[NEF] " + version + " loaded");
@@ -110,6 +111,11 @@ public final class NefClient implements ClientModInitializer {
 			Accounts.tick();                                               // another account → its own files
 			Sniper.clientTick();                                           // auto-open that waited for chat to close
 			Keys.tick(config);                                             // O: bazaar orders HUD on/off
+			try {
+				if (Minecraft.getInstance().player != null && Minecraft.getInstance().player.tickCount % 20 == 0) EndingSoon.tick();
+			} catch (RuntimeException e) {
+				System.err.println("[NEF] ending auctions: " + e);
+			}
 			try {
 				FairySouls.tick();                                         // which island you're on (for the soul markers)
 			} catch (RuntimeException e) {
@@ -583,6 +589,19 @@ public final class NefClient implements ClientModInitializer {
 										})))
 								.then(priceAlert("under", true))
 								.then(priceAlert("over", false)))
+						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("ending")
+								.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("on").executes(ctx -> {
+									config.endingAlerts = true;
+									config.save();
+									ctx.getSource().sendFeedback(Component.literal("[NEF] Alerts for auctions ending under value: on."));
+									return 1;
+								}))
+								.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("off").executes(ctx -> {
+									config.endingAlerts = false;
+									config.save();
+									ctx.getSource().sendFeedback(Component.literal("[NEF] Alerts for auctions ending under value: off."));
+									return 1;
+								})))
 						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("souls").executes(ctx -> {
 									ctx.getSource().sendFeedback(Component.literal("[NEF] " + FairySouls.status()
 											+ " /nef souls on|off · reset (show this island's again) · allfound"));
