@@ -74,6 +74,35 @@ final class CoflClient {
 		}, 10, 2, TimeUnit.SECONDS);
 	}
 
+	private final java.util.Set<String> urgentInFlight = ConcurrentHashMap.newKeySet();
+
+	/**
+	 * A snipe just showed up for this item: fetch its sales history and BIN prices now, both at once, ahead of everything
+	 * queued. The history counts as soon as it's in (the lowest BIN from your AH scan fills in until SkyCofl's arrives).
+	 * Nothing to do when a recent history is already here (prefetched).
+	 */
+	void urgent(String key) {
+		if (cfg == null || !cfg.coflFallback || key == null) return;
+		Entry e = cache.get(key);
+		long now = System.currentTimeMillis();
+		if (e != null && e.history() != null && now - e.at() < WARM_FRESH_MS) return;
+		if (!urgentInFlight.add(key)) return;
+		CompletableFuture<JsonElement> hist = get(url(key, "/history/week"), true);
+		CompletableFuture<JsonElement> bin = get(url(key, "/bin"), true);
+		hist.handle((h, err) -> {
+			if (err == null && h != null && h.isJsonArray()) {
+				Entry old = cache.get(key);
+				cache.put(key, new Entry(System.currentTimeMillis(), h.getAsJsonArray(), old == null ? 0 : old.binAt(),
+						old == null ? null : old.bin(), false));
+			}
+			return null;
+		}).thenCombine(bin.handle((b, err) -> err == null && b != null && b.isJsonObject() ? b.getAsJsonObject() : null), (x, b) -> {
+			Entry cur = cache.get(key);
+			if (b != null && cur != null) cache.put(key, new Entry(cur.at(), cur.history(), System.currentTimeMillis(), b, cur.empty()));
+			return null;
+		}).whenComplete((v, err) -> urgentInFlight.remove(key));
+	}
+
 	/** Items to have the sales history of ready (most important first); replaces the previous list. */
 	void prefetch(java.util.Collection<String> keys) {
 		synchronized (warm) {
@@ -209,10 +238,18 @@ final class CoflClient {
 	}
 
 	private CompletableFuture<JsonElement> get(String url) {
+		return get(url, false);
+	}
+
+	/** urgent = a snipe is waiting: sent right away instead of after the queued requests (the queue moves back one slot). */
+	private CompletableFuture<JsonElement> get(String url, boolean urgent) {
 		long now = System.currentTimeMillis();
 		if (now < blockedUntil) return CompletableFuture.failedFuture(new IllegalStateException("rate limited"));
-		long slot = Math.max(now, nextSlot);
-		nextSlot = slot + 700;                              // ≈ 85 requests/min, under SkyCofl's 100/min
+		long slot;
+		synchronized (this) {
+			slot = urgent ? now : Math.max(now, nextSlot);
+			nextSlot = Math.max(nextSlot, now) + 700;       // ≈ 85 requests/min, under SkyCofl's 100/min (urgent ones count too)
+		}
 		CompletableFuture<JsonElement> f = new CompletableFuture<>();
 		queue.schedule(() -> {
 			HttpRequest req = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(10))
@@ -388,6 +425,10 @@ final class CoflClient {
 		JsonObject r24 = window(raw, now - 86_400_000L), r7 = window(raw, 0);   // what everyone sees, for the warnings
 		Double lowest = HudFormatter.num(e.bin(), "lowest"), second = HudFormatter.num(e.bin(), "secondLowest");
 		if (lowest != null && lowest <= 0) lowest = null;
+		if (lowest == null) {                                          // SkyCofl's BIN prices not in yet: your own AH scan's
+			MarketBook.Item b = MarketBook.get(key);
+			if (b != null && b.lowest() > 0) lowest = b.lowest();
+		}
 		if (second != null && second <= 0) second = null;
 
 		JsonObject summary = new JsonObject();

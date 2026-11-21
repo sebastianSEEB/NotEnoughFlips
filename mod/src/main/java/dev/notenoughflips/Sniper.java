@@ -255,6 +255,7 @@ final class Sniper {
 		}
 		Object v = evaluate(pre, cfg);
 		if (v == PENDING) {
+			if (NefClient.cofl != null) NefClient.cofl.urgent(pre.key());   // fast lane: history + BIN prices now
 			Alert prov = provisional(pre, cfg);
 			if (prov == null) return;
 			fire(prov);
