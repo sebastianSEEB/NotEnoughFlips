@@ -159,7 +159,8 @@ final class FcfPanel {
 		boolean subtract = n.has("bids_subtracted") && n.get("bids_subtracted").getAsBoolean();
 		double sales = d(n, "sales"), bids = d(n, "bids"), expected = d(n, "expected"), refunds = d(n, "refunds");
 		double w0 = wallet == null ? 0 : wallet;
-		double fcf = w0 + sales - (subtract ? bids : 0) + expected + refunds;
+		double inBz = BzOrders.value();                                // coins held in your bazaar orders
+		double fcf = w0 + sales - (subtract ? bids : 0) + expected + refunds + inBz;
 		double cons = fcf - sales + d(n, "sales_conservative");
 		if (tab == 1) {
 			paintTied(s, p, x, y, w, f, n, purse, bank, repWallet);
@@ -183,8 +184,9 @@ final class FcfPanel {
 		steps.add(new Step("− Ongoing bids", -bids, subtract ? 2 : 3));
 		steps.add(new Step("+ Expected sale value", expected, 1));
 		if (!subtract) steps.add(new Step("+ Outbid refunds", refunds, 1));
+		if (inBz > 0) steps.add(new Step("+ Bazaar orders", inBz, 1));
 		steps.add(new Step("= Potential FCF", fcf, 0));
-		double max = Math.max(1, Math.max(fcf, w0 + sales + expected + refunds));
+		double max = Math.max(1, Math.max(fcf, w0 + sales + expected + refunds + inBz));
 
 		int barX = x + 5, barW = w - 10;
 		int ly = y + 16;

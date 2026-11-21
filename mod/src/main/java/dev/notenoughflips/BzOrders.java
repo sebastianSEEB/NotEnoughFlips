@@ -95,6 +95,25 @@ final class BzOrders {
 		return orders;
 	}
 
+	/**
+	 * Coins your bazaar orders hold right now, so FCF doesn't dip when you place one: buy orders at what you pay
+	 * (coins locked + items bought but not claimed), sell offers at what you get after tax (items + coins not claimed).
+	 */
+	static double value() {
+		double tax = cfg == null ? 0.0125 : cfg.bazaarTaxPercent / 100.0;
+		return value(orders, tax);
+	}
+
+	/** Pure: see value(). */
+	static double value(List<Order> list, double tax) {
+		double v = 0;
+		for (Order o : list) {
+			if (o.amount() <= 0 || o.price() <= 0) continue;
+			v += "BUY".equalsIgnoreCase(o.side()) ? o.amount() * o.price() : o.amount() * o.price() * (1 - tax);
+		}
+		return v;
+	}
+
 	static boolean isOrdersScreen(Screen s) {
 		String t = s.getTitle().getString().toLowerCase(Locale.ROOT);
 		return t.contains("bazaar orders");

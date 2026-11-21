@@ -73,4 +73,12 @@ class NewFeaturesTest {
 		assertFalse(PriceAlerts.rearm(true, 600_000_000, 605_000_000), "within 2 %: stays fired");
 		assertTrue(PriceAlerts.rearm(true, 600_000_000, 620_000_000));
 	}
+
+	@Test
+	void bazaarOrdersCountInFcf() {
+		java.util.List<BzOrders.Order> l = java.util.List.of(
+				new BzOrders.Order("BUY", "ENCHANTED_ROTTEN_FLESH", "Enchanted Rotten Flesh", 425, 5000, 1000, 0),
+				new BzOrders.Order("SELL", "SUMMONING_EYE", "Summoning Eye", 1_300_000, 2, 0, 0));
+		assertEquals(5000 * 425 + 2 * 1_300_000 * 0.9875, BzOrders.value(l, 0.0125), 1, "buy orders at cost, sell offers after tax");
+	}
 }

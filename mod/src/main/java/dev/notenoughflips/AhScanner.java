@@ -311,16 +311,18 @@ final class AhScanner {
 		n.addProperty("expected", expected);
 		n.addProperty("refunds", refunds);
 		double onAh = sales + expected + refunds;
+		double bz = BzOrders.value();                                   // coins held in your bazaar orders
 		n.addProperty("on_ah", onAh);
+		n.addProperty("bazaar", bz);
 		Double purse = FcfPanel.purse();
 		if (purse != null) {
 			n.addProperty("wallet", purse);
 			n.addProperty("purse", purse);
-			n.addProperty("fcf", purse + onAh);
-			n.addProperty("fcf_conservative", purse + salesCons + expected + refunds);
+			n.addProperty("fcf", purse + onAh + bz);
+			n.addProperty("fcf_conservative", purse + salesCons + expected + refunds + bz);
 		} else {
-			n.addProperty("fcf", onAh);
-			n.addProperty("fcf_conservative", salesCons + expected + refunds);
+			n.addProperty("fcf", onAh + bz);
+			n.addProperty("fcf_conservative", salesCons + expected + refunds + bz);
 		}
 		n.addProperty("n_sales", nSales);
 		n.addProperty("n_winning", nWin);
@@ -331,7 +333,7 @@ final class AhScanner {
 		JsonObject f = new JsonObject();
 		f.addProperty("updated", ts);
 		f.add("now", n);
-		f.add("series", history(ts, onAh, purse));
+		f.add("series", history(ts, onAh, purse, bz));
 		f.add("positions", sorted(positions));
 		JsonObject rep = new JsonObject();
 		rep.addProperty("source", "mod AH scan");
@@ -355,7 +357,7 @@ final class AhScanner {
 	}
 
 	/** Appends this scan to the 7-day FCF history file and returns the series (ts, on_ah, wallet, fcf). */
-	private static JsonArray history(long ts, double onAh, Double purse) {
+	private static JsonArray history(long ts, double onAh, Double purse, double bz) {
 		Path file = null;
 		List<String> lines = new ArrayList<>();
 		try {
@@ -364,7 +366,7 @@ final class AhScanner {
 		} catch (IOException | RuntimeException ignored) {
 			// start fresh
 		}
-		lines.add(ts + "," + Math.round(onAh) + "," + (purse == null ? "" : String.valueOf(Math.round(purse))));
+		lines.add(ts + "," + Math.round(onAh) + "," + (purse == null ? "" : String.valueOf(Math.round(purse))) + "," + Math.round(bz));
 		long cutoff = ts - 7L * 86_400_000L;
 		lines.removeIf(l -> {
 			try {
@@ -387,7 +389,8 @@ final class AhScanner {
 			if (p.length > 2 && !p[2].isEmpty()) {
 				double w = Double.parseDouble(p[2]);
 				o.addProperty("wallet", w);
-				o.addProperty("fcf", w + Double.parseDouble(p[1]));
+				double inBz = p.length > 3 && !p[3].isEmpty() ? Double.parseDouble(p[3]) : 0;   // bazaar orders (newer lines)
+				o.addProperty("fcf", w + Double.parseDouble(p[1]) + inBz);
 			}
 			series.add(o);
 		}
