@@ -47,6 +47,10 @@ Rows open what they are about: auctions open the auction, bazaar items open the 
 - NPC flips: when an item is listed on the AH, or sold on the bazaar, for less than an NPC pays for it, you can buy it and sell it to the NPC with no fees and no waiting. These show up in DEALS and as chat alerts (new listings within seconds). The tooltip says so too, and no item is valued below what an NPC pays for it.
 - Price alerts: `/nef alert under 600m hyperion` or `/nef alert over 3m booster cookie` (or `hand` for the item you're holding). You get a chat message and a ping when the price crosses your line. "Under" alerts on the AH fire within seconds of the listing.
 
+## Fairy Soul markers
+
+Every Fairy Soul on the island you're on gets a marker on your screen, visible through walls, with its distance. The nearest one is labelled, and when it's behind you the label says which way to turn. Click a soul and its marker goes away. Souls you collected before installing the mod disappear the first time you click them ("already found"), or mark a whole island done with `/nef souls allfound`. Progress is kept per account and profile. The markers only show where souls are; the mod never moves or clicks for you.
+
 ## Bidder check
 
 In an auction, a panel shows how many coins each of the other bidders has in purse and bank. If none of them can afford to go much higher, you don't need to open with a big bid.
@@ -110,6 +114,7 @@ A free Hypixel API key (developer.hypixel.net) turns on the bidder check and add
 | `/nef settings` | Every option in one place |
 | `/nef session` | Profit this session and per hour |
 | `/nef alert under\|over <price> <item>` | Your own price alerts (`list`, `remove <n>`, `clear`) |
+| `/nef souls` | Fairy Soul markers: `on`/`off`, `reset` (show this island's again), `allfound` |
 | `/nef minvalue <amount>` | Ignore items worth less than this (1M by default, `0` = any) |
 | `/nef bztax <percent>` | Your bazaar tax (1.25 by default, lower with the Bazaar Flipper upgrade) |
 | `/nef orders` | Bazaar orders HUD on or off (also key O): `size small\|medium\|large`, `max <1-20>` |

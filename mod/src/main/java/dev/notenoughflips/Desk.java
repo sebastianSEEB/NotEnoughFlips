@@ -397,6 +397,7 @@ final class Desk {
 				ly = onOff(p, x, ly, lw, "Discord button", cfg.discordButton, v -> cfg.discordButton = v);
 				ly = setting(p, x, ly, lw, "Tooltips", new String[]{"Simple", "Pro"}, cfg.simpleMode ? 0 : 1, i -> cfg.simpleMode = i == 0);
 				ly = onOff(p, x, ly, lw, "Alert sound", cfg.alertSound, v -> cfg.alertSound = v);
+				ly = onOff(p, x, ly, lw, "Fairy Soul markers", cfg.fairySouls, v -> cfg.fairySouls = v);
 				p.text(FcfPanel.fit("Your own API key (adds your bank to your coins): /nef apikey <key>", w), x, ly + 2, MUTED);
 			}
 			default -> {

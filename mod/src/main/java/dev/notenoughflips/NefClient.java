@@ -99,6 +99,7 @@ public final class NefClient implements ClientModInitializer {
 		PriceChart.init(config);
 		FcfPanel.init(config, data);
 		Desk.init(config, data);
+		FairySouls.init(config);
 		String version = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("notenoughflips")
 				.map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse("?");
 		System.out.println("[NEF] " + version + " loaded");
@@ -109,6 +110,11 @@ public final class NefClient implements ClientModInitializer {
 			Accounts.tick();                                               // another account → its own files
 			Sniper.clientTick();                                           // auto-open that waited for chat to close
 			Keys.tick(config);                                             // O: bazaar orders HUD on/off
+			try {
+				FairySouls.tick();                                         // which island you're on (for the soul markers)
+			} catch (RuntimeException e) {
+				System.err.println("[NEF] fairy souls: " + e);
+			}
 			if (client.player != null && ticks[0] % 600 == 300) {        // every 30 s: your price alerts
 				try {
 					PriceAlerts.check();
@@ -153,6 +159,7 @@ public final class NefClient implements ClientModInitializer {
 					"loaded. Press E: FLIP (right of your inventory) shows flips that fit your purse; FCF is above it.", HudFormatter.GRAY));
 			ProfitLog.dailySummary();
 		});
+		ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> overlay || !FairySouls.onChat(message));   // hides only our own /locraw answer
 		ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
 			if (overlay) return;
 			OutbidHud.onChat(message);
@@ -539,6 +546,31 @@ public final class NefClient implements ClientModInitializer {
 										})))
 								.then(priceAlert("under", true))
 								.then(priceAlert("over", false)))
+						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("souls").executes(ctx -> {
+									ctx.getSource().sendFeedback(Component.literal("[NEF] " + FairySouls.status()
+											+ " /nef souls on|off · reset (show this island's again) · allfound"));
+									return 1;
+								})
+								.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("on").executes(ctx -> {
+									config.fairySouls = true;
+									config.save();
+									ctx.getSource().sendFeedback(Component.literal("[NEF] Fairy Soul markers on."));
+									return 1;
+								}))
+								.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("off").executes(ctx -> {
+									config.fairySouls = false;
+									config.save();
+									ctx.getSource().sendFeedback(Component.literal("[NEF] Fairy Soul markers off."));
+									return 1;
+								}))
+								.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("reset").executes(ctx -> {
+									ctx.getSource().sendFeedback(Component.literal("[NEF] " + FairySouls.resetIsland()));
+									return 1;
+								}))
+								.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("allfound").executes(ctx -> {
+									ctx.getSource().sendFeedback(Component.literal("[NEF] " + FairySouls.allFound()));
+									return 1;
+								})))
 						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("session").executes(ctx -> {
 							ctx.getSource().sendFeedback(Component.literal("[NEF] " + ProfitLog.sessionLine()));
 							return 1;
