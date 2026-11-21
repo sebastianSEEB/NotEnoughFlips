@@ -291,7 +291,7 @@ final class Sniper {
 				String st = NefClient.cofl == null ? "none" : NefClient.cofl.state(pre.key());
 				if (giveUp(age, st)) {
 					update(pre.uuid(), "empty".equals(st) || "ready".equals(st) ? "bad: no sales history to check it against"
-							: "bad: couldn't load its sales history in time (SkyCofl busy), check it yourself");
+							: "unchecked: couldn't load its sales history in time, check the price yourself");
 					continue;
 				}
 				if (!"loading".equals(st) && now - (long) p[2] > 5_000L && NefClient.cofl != null) {   // a fetch failed: try again
@@ -333,10 +333,26 @@ final class Sniper {
 				Chat.say(HudFormatter.line("[NEF] ✓ checked: ", HudFormatter.GREEN, a.name() + " is a real snipe (sales history, not manipulated)"
 						+ String.format(Locale.ROOT, ", resell ≈ %s, +%s after fees", HudFormatter.fmt(a.resale()), HudFormatter.fmt(a.profit())), HudFormatter.WHITE)
 						.append(HudFormatter.openAuction(a.uuid())));
-			} else {
-				Chat.say(HudFormatter.line("[NEF] ✗ DON'T BUY ", HudFormatter.RED, a.name() + ": " + a.status().replaceFirst("^bad: ", ""), HudFormatter.WHITE));
+			} else if (once(a.name() + "|" + a.status())) {         // the same item failing again: no new line
+				boolean unchecked = a.status().startsWith("unchecked");
+				Chat.say(HudFormatter.line(unchecked ? "[NEF] ? NOT CHECKED " : "[NEF] ✗ DON'T BUY ", unchecked ? HudFormatter.GOLD : HudFormatter.RED,
+						a.name() + ": " + reason(a.status()), HudFormatter.WHITE));
 			}
 		});
+	}
+
+	private static final Map<String, Long> said = new java.util.concurrent.ConcurrentHashMap<>();
+
+	/** True the first time in 2 minutes for this item and verdict. */
+	static boolean once(String what) {
+		long now = System.currentTimeMillis();
+		said.values().removeIf(t -> now - t > 120_000L);
+		return said.putIfAbsent(what, now) == null;
+	}
+
+	/** "bad: too few sales" → "too few sales". */
+	static String reason(String status) {
+		return status.replaceFirst("^(bad|unchecked): ", "");
 	}
 
 	/** judge() result: needs price data first (fetch started), try again shortly. */
@@ -484,7 +500,7 @@ final class Sniper {
 	static boolean wantsOpen(Alert a, boolean justChecked) {
 		if (!cfg.snipeAutoOpen || a == null || autoOpened.contains(a.uuid())) return false;
 		boolean ok = a.status().equals("ok");
-		if (a.status().startsWith("bad")) return false;
+		if (a.status().startsWith("bad") || a.status().startsWith("unchecked")) return false;
 		if (cfg.snipeOpenChecked && !ok) return false;
 		if (!cfg.snipeOpenChecked && justChecked) return false;         // it was opened (or skipped) when it first came in
 		if (offPercent(a) + 0.01 < cfg.snipeOpenMinPercent) return false;
@@ -530,7 +546,9 @@ final class Sniper {
 		Minecraft mc = Minecraft.getInstance();
 		String l1 = "⚡ UNDERVALUED BIN  " + a.name() + (a.count() > 1 ? " ×" + a.count() : "");
 		boolean ok = a.status().equals("ok"), checking = a.status().equals("checking");
-		String l2 = !ok && !checking ? "✗ DON'T BUY: " + a.status().replaceFirst("^bad: ", "")
+		boolean unchecked = a.status().startsWith("unchecked");
+		String l2 = unchecked ? "? NOT CHECKED: " + reason(a.status())
+				: !ok && !checking ? "✗ DON'T BUY: " + reason(a.status())
 				: String.format(Locale.ROOT, "%s → resell ≈ %s   +%s (%.0f%%) after fees · %s", HudFormatter.fmt(a.price()),
 						HudFormatter.fmt(a.resale()), HudFormatter.fmt(a.profit()), a.pct() * 100,
 						ok ? "✓ checked, not manipulated" : "checking history…");
@@ -542,7 +560,7 @@ final class Sniper {
 		int w = Math.max(mc.font.width(l1), Math.max(mc.font.width(l2), mc.font.width(l3))) + 16;
 		int x = (screenW - w) / 2, y = 4;
 		long age = System.currentTimeMillis() - a.at();
-		int border = !ok && !checking ? 0xFFFF5555 : (age / 400) % 2 == 0 ? 0xFFFFAA00 : 0xFFFFD35C;   // blinks; red = don't
+		int border = unchecked ? 0xFFFFAA00 : !ok && !checking ? 0xFFFF5555 : (age / 400) % 2 == 0 ? 0xFFFFAA00 : 0xFFFFD35C;   // blinks; red = don't
 		p.fill(x - 1, y - 1, x + w + 1, y + 37, border);
 		p.fill(x, y, x + w, y + 36, 0xF0101418);
 		p.text(l1, x + 8, y + 3, 0xFFFFAA00);

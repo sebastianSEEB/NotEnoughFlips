@@ -589,12 +589,12 @@ final class FlipPanel {
 		}
 		for (int i = 0; i < al.size() && i < 5 && y + 20 <= bottom; i++) {
 			Sniper.Alert a = al.get(i);
-			boolean ok = a.status().equals("ok"), bad = a.status().startsWith("bad");
-			String mark = ok ? "✓ " : bad ? "✗ " : "… ";
-			String right = bad ? "skip" : "+" + HudFormatter.fmt(a.profit());
+			boolean ok = a.status().equals("ok"), bad = a.status().startsWith("bad"), unchecked = a.status().startsWith("unchecked");
+			String mark = ok ? "✓ " : bad ? "✗ " : unchecked ? "? " : "… ";
+			String right = bad ? "skip" : unchecked ? "check it" : "+" + HudFormatter.fmt(a.profit());
 			long ago = (now - a.at()) / 60000;
 			String detail = HudFormatter.fmt(a.price()) + " → " + HudFormatter.fmt(a.resale()) + " · " + (ago < 1 ? "just now" : ago + "m ago")
-					+ (bad ? " · " + a.status().substring(5) : "");
+					+ (bad || unchecked ? " · " + Sniper.reason(a.status()) : "");
 			row(p, x, y, w, mark + a.name(), right, bad ? BAD : ok ? GOOD : WARN, detail,
 					bad ? null : () -> { Holdings.intend(a.name(), a.key(), "Snipe", a.resale() / Math.max(1, a.count())); Cmd.viewAuction(a.uuid()); });
 			y += 21;

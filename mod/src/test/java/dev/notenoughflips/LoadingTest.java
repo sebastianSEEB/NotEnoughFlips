@@ -55,4 +55,13 @@ class LoadingTest {
 		assertFalse(Sniper.giveUp(20_000, "failed"));
 		assertTrue(Sniper.giveUp(31_000, "none"));
 	}
+
+	@Test
+	void anItemThatCantBeCheckedIsSaidOnceAndNotCalledBad() {
+		assertTrue(Sniper.once("Frozen Scythe|unchecked: x"));
+		assertFalse(Sniper.once("Frozen Scythe|unchecked: x"), "same item, same verdict: no second chat line");
+		assertTrue(Sniper.once("Amber Power Scroll|unchecked: x"));
+		assertEquals("too few sales", Sniper.reason("bad: too few sales"));
+		assertEquals("couldn't load", Sniper.reason("unchecked: couldn't load"));
+	}
 }
