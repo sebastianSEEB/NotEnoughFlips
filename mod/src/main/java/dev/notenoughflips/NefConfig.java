@@ -86,6 +86,8 @@ final class NefConfig {
 	boolean alertSound = true;        // ping on: item sold, outbid, bazaar order filled / outbid, big new flip
 	double bazaarTaxPercent = 1.25;   // 1.25 % default; lower with the Bazaar Flipper account upgrade
 	double bazaarSharePercent = 10;   // part of a product's traded volume you can expect to fill
+	boolean bazaarBookWatch = true;   // watch the order books: how often the top order is outbid / the spread holds (BzWatch)
+	double bazaarCheckMinutes = 5;    // how often you re-check (and re-outbid) your bazaar orders
 	boolean priceChart = true;        // big 7-day price chart beside the menu while you hover an auction item
 	boolean manipMarkers = true;      // red "!" on AH items that look manipulated (price spike, buyout, inflated listings)
 	boolean signFill = true;          // pre-fill the Bazaar search / amount / price signs for the flip you clicked (you press Done)

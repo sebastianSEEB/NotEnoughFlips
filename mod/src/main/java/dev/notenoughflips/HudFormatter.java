@@ -235,6 +235,8 @@ final class HudFormatter {
 		if (!cfg.simpleMode)
 			out.add(line(String.format(Locale.ROOT, "    for you: buys %s/h, sells %s/h (%d buy orders, %d sell offers near the top)",
 					fmt(f.buyFillPerHour()), fmt(f.sellFillPerHour()), f.competition(), f.offers()), DARK));
+		String watch = BzWatch.describe(f.id());
+		if (watch != null) out.add(line("    " + watch, DARK));
 		double budget = cfg.budget(FcfPanel.purse());
 		if (f.qty() >= 1 && budget > 0 && f.cost() >= budget * 0.95)
 			out.add(line("    capped by your flip budget (" + fmt(budget) + ", " + (int) cfg.budgetPercent

@@ -527,8 +527,21 @@ final class DataClient {
 			out.put(e.getKey(), new Live(q.get("buyPrice").getAsDouble(), q.get("sellPrice").getAsDouble(), ts,
 					d(q, "buyMovingWeek"), d(q, "sellMovingWeek"), (int) d(q, "buyOrders"), (int) d(q, "sellOrders"),
 					near(pr.get("buy_summary"), false), near(pr.get("sell_summary"), true)));
+			try {                                                   // the exact top of each side, for the order-book watch
+				double order = top(pr.get("sell_summary")), offer = top(pr.get("buy_summary"));
+				if (order > 0 && offer > 0) BzWatch.observe(e.getKey(), ts, order, offer);
+			} catch (RuntimeException ignored) {
+				// odd product: skip
+			}
 		}
+		BzWatch.snapshotDone();
 		return out;
+	}
+
+	/** Best price in an order-book summary (first entry), or 0. */
+	static double top(JsonElement summary) {
+		if (summary == null || !summary.isJsonArray() || summary.getAsJsonArray().isEmpty()) return 0;
+		return summary.getAsJsonArray().get(0).getAsJsonObject().get("pricePerUnit").getAsDouble();
 	}
 
 	/**

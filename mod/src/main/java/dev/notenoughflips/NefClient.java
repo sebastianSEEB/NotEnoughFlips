@@ -100,6 +100,7 @@ public final class NefClient implements ClientModInitializer {
 		FcfPanel.init(config, data);
 		Desk.init(config, data);
 		FairySouls.init(config);
+		BzWatch.init(config);
 		EndingSoon.init(config);
 		String version = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("notenoughflips")
 				.map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse("?");
@@ -111,6 +112,12 @@ public final class NefClient implements ClientModInitializer {
 			Accounts.tick();                                               // another account → its own files
 			Sniper.clientTick();                                           // auto-open that waited for chat to close
 			Keys.tick(config);                                             // O: bazaar orders HUD on/off
+			try {                                                          // keep the bazaar snapshot fresh: the order-book watch needs it
+				if (config.bazaarBookWatch && Minecraft.getInstance().player != null && Minecraft.getInstance().player.tickCount % 600 == 0)
+					data.bazaarAll();
+			} catch (RuntimeException ignored) {
+				// next time
+			}
 			try {
 				if (Minecraft.getInstance().player != null && Minecraft.getInstance().player.tickCount % 20 == 0) EndingSoon.tick();
 			} catch (RuntimeException e) {

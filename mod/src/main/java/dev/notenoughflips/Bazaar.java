@@ -81,6 +81,7 @@ final class Bazaar {
 				}
 			}
 			if (why != null) continue;                             // crashing, pulled order, or pumped on both sides
+			if (BzWatch.flash(e.getKey())) continue;                // the spread only opened for a moment: gone before you fill
 			if (!repriced && rich.contains(e.getKey())) continue;  // priced far above its peers right now: don't buy into it
 			double npc = NpcPrices.price(e.getKey());
 			if (npc > 0 && l.buy() > npc) continue;                 // an NPC sells it cheaper than your sell offer would be
@@ -198,7 +199,7 @@ final class Bazaar {
 		int orders = l.nearOrders() >= 0 ? l.nearOrders() : l.orders() / 10;         // near-top competitors (book summary)
 		int offers = l.nearOffers() >= 0 ? l.nearOffers() : l.offers() / 10;
 		return Market.bazaarFlip(id, l.buy(), l.sell(), l.buyWeek(), l.sellWeek(), orders, offers, cfg.bazaarTaxPercent,
-				cfg.bazaarSharePercent / 100.0, budget, Math.max(0.25, cfg.bazaarRoundHours), fc, Double.isNaN(slide) ? 0 : slide);
+				cfg.bazaarSharePercent / 100.0 * BzWatch.factor(id), budget, Math.max(0.25, cfg.bazaarRoundHours), fc, Double.isNaN(slide) ? 0 : slide);
 	}
 
 	/** "Enchanted Diamond" (any colour codes, "64x " prefixes, "BUY "/"SELL " prefixes) → ENCHANTED_DIAMOND, or null. */

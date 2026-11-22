@@ -375,6 +375,10 @@ final class Desk {
 			}
 			case "bz" -> {
 				ly = onOff(p, x, ly, lw, "Orders HUD (O)", cfg.bzHud, v -> cfg.bzHud = v);
+				ly = onOff(p, x, ly, lw, "Watch order books", cfg.bazaarBookWatch, v -> cfg.bazaarBookWatch = v);
+				double[] checks = {2, 5, 10, 15};
+				ly = setting(p, x, ly, lw, "I re-check orders every", new String[]{"2m", "5m", "10m", "15m"}, pick(checks, cfg.bazaarCheckMinutes),
+						i -> cfg.bazaarCheckMinutes = checks[i]);
 				String[] sizes = {"small", "medium", "large"};
 				int si = java.util.Arrays.asList(sizes).indexOf(cfg.bzHudSize);
 				ly = setting(p, x, ly, lw, "HUD size", new String[]{"small", "medium", "large"}, Math.max(0, si), i -> cfg.bzHudSize = sizes[i]);

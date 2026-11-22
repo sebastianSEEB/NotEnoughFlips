@@ -32,6 +32,10 @@ New BINs can't be bought for their first 20 seconds. The mod counts that hold do
 
 It also looks where macros don't. Upgrade snipes catch copies priced like a plain one but carrying stars, a recomb, gems or big enchants worth much more. Ending-auction alerts point out regular auctions about to end well under value, with the most you can bid and still profit.
 
+## Bazaar order-book watch
+
+While you play, the mod watches every bazaar product's order book: how often the top buy order is outbid, how often the cheapest sell offer is undercut, and whether the spread holds or only opened for a moment. The profit-per-hour ranking uses that to count only the time your order would really be on top, so products where you'd be outbid every few seconds stop looking like easy money.
+
 ## Bazaar orders HUD
 
 Press O (change it in Controls → Key Binds) to show your bazaar orders at the top right of the screen while you play: buy orders on the left, sell offers on the right, each marked as top of the book, outbid/undercut or filled. Pick the size and how many orders to show in FLIP → Bazaar, or with `/nef orders size small|medium|large` and `/nef orders max 8`. Open /bz → Manage Orders once so the mod can read them.
