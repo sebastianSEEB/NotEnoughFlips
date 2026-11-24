@@ -280,7 +280,7 @@ final class DataClient {
 					if (err == null && resp.statusCode() == 200) {
 						boolean gz = resp.headers().firstValue("Content-Encoding").map(v -> v.contains("gzip")).orElse(false);
 						try (InputStream in = gz ? new GZIPInputStream(resp.body()) : resp.body()) {
-							bazaar = parseBazaar(JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject());
+							bazaar = parseBazaar(new java.io.BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8), 1 << 16));
 						}
 					}
 				} catch (Exception ignored) {
@@ -517,28 +517,115 @@ final class DataClient {
 	}
 
 	static Map<String, Live> parseBazaar(JsonObject root) {
-		long ts = root.has("lastUpdated") ? root.get("lastUpdated").getAsLong() : System.currentTimeMillis();
-		JsonObject products = root.getAsJsonObject("products");
-		Map<String, Live> out = new ConcurrentHashMap<>();
-		for (Map.Entry<String, JsonElement> e : products.entrySet()) {
-			JsonObject q = e.getValue().getAsJsonObject().getAsJsonObject("quick_status");
-			if (q == null) continue;
-			JsonObject pr = e.getValue().getAsJsonObject();
+		try {
+			return parseBazaar(new java.io.StringReader(root.toString()));
+		} catch (java.io.IOException e) {
+			throw new IllegalStateException(e);
+		}
+	}
+
+	/**
+	 * Reads the bazaar response as a stream: no 30 MB JSON tree per refresh, only the numbers kept (top of each book side,
+	 * orders near the top, weekly volumes, order counts). Same result as the tree version, a fraction of the garbage.
+	 */
+	static Map<String, Live> parseBazaar(java.io.Reader in) throws java.io.IOException {
+		com.google.gson.stream.JsonReader r = new com.google.gson.stream.JsonReader(in);
+		long ts = 0;
+		Map<String, double[]> raw = new java.util.HashMap<>(2048);
+		r.beginObject();
+		while (r.hasNext()) {
+			String k = r.nextName();
+			if (k.equals("lastUpdated")) ts = r.nextLong();
+			else if (k.equals("products")) {
+				r.beginObject();
+				while (r.hasNext()) {
+					String id = r.nextName();
+					double[] p = readProduct(r);
+					if (p != null) raw.put(id, p);
+				}
+				r.endObject();
+			} else r.skipValue();
+		}
+		r.endObject();
+		if (ts == 0) ts = System.currentTimeMillis();
+		Map<String, Live> out = new ConcurrentHashMap<>(raw.size() * 2);
+		for (Map.Entry<String, double[]> e : raw.entrySet()) {
+			double[] p = e.getValue();   // {topOffer, nearOffers, topOrder, nearOrders, qBuy, qSell, buyWeek, sellWeek, buyOrders, sellOrders}
 			// the real top of the book, as the Bazaar menu shows it: quick_status prices are averages over the top 2 % of
 			// the volume and trail the actual best offer / order (the "prices lag" you see in game)
-			double topOffer = top(pr.get("buy_summary")), topOrder = top(pr.get("sell_summary"));
-			out.put(e.getKey(), new Live(topOffer > 0 ? topOffer : q.get("buyPrice").getAsDouble(),
-					topOrder > 0 ? topOrder : q.get("sellPrice").getAsDouble(), ts,
-					d(q, "buyMovingWeek"), d(q, "sellMovingWeek"), (int) d(q, "buyOrders"), (int) d(q, "sellOrders"),
-					near(pr.get("buy_summary"), false), near(pr.get("sell_summary"), true)));
-			try {                                                   // the exact top of each side, for the order-book watch
-				if (topOrder > 0 && topOffer > 0) BzWatch.observe(e.getKey(), ts, topOrder, topOffer);
-			} catch (RuntimeException ignored) {
-				// odd product: skip
-			}
+			out.put(e.getKey(), new Live(p[0] > 0 ? p[0] : p[4], p[2] > 0 ? p[2] : p[5], ts, p[6], p[7], (int) p[8], (int) p[9],
+					(int) p[1], (int) p[3]));
+			if (p[0] > 0 && p[2] > 0) BzWatch.observe(e.getKey(), ts, p[2], p[0]);
 		}
 		BzWatch.snapshotDone();
 		return out;
+	}
+
+	/** One product: {topOffer, nearOffers, topOrder, nearOrders, qBuy, qSell, buyWeek, sellWeek, buyOrders, sellOrders}; null without quick_status. */
+	private static double[] readProduct(com.google.gson.stream.JsonReader r) throws java.io.IOException {
+		double[] p = {0, -1, 0, -1, 0, 0, 0, 0, 0, 0};
+		boolean quick = false;
+		r.beginObject();
+		while (r.hasNext()) {
+			switch (r.nextName()) {
+				case "buy_summary" -> readSide(r, false, p, 0);      // sell offers, cheapest first
+				case "sell_summary" -> readSide(r, true, p, 2);      // buy orders, highest first
+				case "quick_status" -> {
+					quick = true;
+					r.beginObject();
+					while (r.hasNext()) {
+						String k = r.nextName();
+						if (r.peek() != com.google.gson.stream.JsonToken.NUMBER) { r.skipValue(); continue; }
+						switch (k) {
+							case "buyPrice" -> p[4] = r.nextDouble();
+							case "sellPrice" -> p[5] = r.nextDouble();
+							case "buyMovingWeek" -> p[6] = r.nextDouble();
+							case "sellMovingWeek" -> p[7] = r.nextDouble();
+							case "buyOrders" -> p[8] = r.nextDouble();
+							case "sellOrders" -> p[9] = r.nextDouble();
+							default -> r.skipValue();
+						}
+					}
+					r.endObject();
+				}
+				default -> r.skipValue();
+			}
+		}
+		r.endObject();
+		return quick ? p : null;
+	}
+
+	/** One side of the book: its best price into p[at], and the orders within 0.5 % of it into p[at + 1] (see near()). */
+	private static void readSide(com.google.gson.stream.JsonReader r, boolean highestFirst, double[] p, int at) throws java.io.IOException {
+		if (r.peek() != com.google.gson.stream.JsonToken.BEGIN_ARRAY) { r.skipValue(); return; }
+		r.beginArray();
+		double best = 0, band = 0;
+		int n = 0;
+		boolean first = true, done = false;
+		while (r.hasNext()) {
+			double price = 0;
+			int orders = 1;
+			r.beginObject();
+			while (r.hasNext()) {
+				String k = r.nextName();
+				if (k.equals("pricePerUnit")) price = r.nextDouble();
+				else if (k.equals("orders")) orders = r.nextInt();
+				else r.skipValue();
+			}
+			r.endObject();
+			if (first) {
+				first = false;
+				best = price;
+				band = Math.max(best * 0.005, 0.2);
+			}
+			if (!done && (highestFirst ? price < best - band : price > best + band)) done = true;
+			if (!done) n += orders;
+		}
+		r.endArray();
+		if (!first) {
+			p[at] = best;
+			p[at + 1] = n;
+		}
 	}
 
 	/** Best price in an order-book summary (first entry), or 0. */

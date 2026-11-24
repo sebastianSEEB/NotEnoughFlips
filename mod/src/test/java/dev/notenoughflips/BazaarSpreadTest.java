@@ -49,4 +49,45 @@ class BazaarSpreadTest {
 		assertTrue(Bazaar.spreadManipulated(16_000_000, 10_000_000), "1.6× on an item over 7.5M");
 		assertFalse(Bazaar.spreadManipulated(2_100, 0), "no history: no flag");
 	}
+
+	@Test
+	void streamingParseMatchesTheOrderBook() {
+		// random books: the streamed numbers must equal what the old tree code computed with top() and near()
+		java.util.Random rnd = new java.util.Random(3);
+		StringBuilder sb = new StringBuilder("{\"lastUpdated\":5,\"products\":{");
+		for (int i = 0; i < 40; i++) {
+			if (i > 0) sb.append(',');
+			sb.append("\"P").append(i).append("\":{\"product_id\":\"P").append(i).append("\",");
+			double base = 1 + rnd.nextInt(100_000);
+			for (String side : new String[]{"sell_summary", "buy_summary"}) {
+				sb.append('"').append(side).append("\":[");
+				int n = rnd.nextInt(6);
+				for (int k = 0; k < n; k++) {
+					if (k > 0) sb.append(',');
+					double pr = side.equals("sell_summary") ? base * (1 - 0.003 * k) : base * (1.02 + 0.003 * k);
+					sb.append("{\"orders\":").append(1 + rnd.nextInt(5)).append(",\"amount\":7,\"pricePerUnit\":").append(pr).append('}');
+				}
+				sb.append("],");
+			}
+			sb.append("\"quick_status\":{\"productId\":\"P").append(i).append("\",\"buyPrice\":").append(base * 1.05)
+					.append(",\"sellPrice\":").append(base * 0.97).append(",\"buyMovingWeek\":").append(i * 10)
+					.append(",\"sellMovingWeek\":").append(i * 7).append(",\"buyOrders\":").append(i).append(",\"sellOrders\":").append(i + 1).append("}}");
+		}
+		var root = JsonParser.parseString(sb.append("}}").toString()).getAsJsonObject();
+		var m = DataClient.parseBazaar(root);
+		assertEquals(40, m.size());
+		for (int i = 0; i < 40; i++) {
+			var pr = root.getAsJsonObject("products").getAsJsonObject("P" + i);
+			var q = pr.getAsJsonObject("quick_status");
+			DataClient.Live l = m.get("P" + i);
+			double offer = DataClient.top(pr.get("buy_summary")), order = DataClient.top(pr.get("sell_summary"));
+			assertEquals(offer > 0 ? offer : q.get("buyPrice").getAsDouble(), l.buy(), 1e-9);
+			assertEquals(order > 0 ? order : q.get("sellPrice").getAsDouble(), l.sell(), 1e-9);
+			assertEquals(DataClient.near(pr.get("buy_summary"), false), l.nearOffers());
+			assertEquals(DataClient.near(pr.get("sell_summary"), true), l.nearOrders());
+			assertEquals(i * 10, l.buyWeek(), 1e-9);
+			assertEquals(i + 1, l.orders());
+			assertEquals(5, l.ts());
+		}
+	}
 }

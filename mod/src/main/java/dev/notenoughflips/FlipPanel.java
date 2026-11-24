@@ -343,7 +343,7 @@ final class FlipPanel {
 		section(p, x, y, w, "Best flips", right.trim());
 		y += 11;
 		if (list.isEmpty()) {
-			p.text(FcfPanel.fit(data.bazaarAll().isEmpty() ? "Loading the bazaar…" : "Nothing fits your budget", w - 2 * PAD), x + PAD, y, MUTED);
+			p.text(FcfPanel.fit(data.bazaarAll().isEmpty() ? "Loading the bazaar…" : Bazaar.busy() ? "Ranking…" : "Nothing fits your budget", w - 2 * PAD), x + PAD, y, MUTED);
 			return y + 10;
 		}
 		for (int i = 0; i < list.size() && y + R2 <= bottom; i++) {
@@ -375,7 +375,7 @@ final class FlipPanel {
 		section(p, x, y, w, "Spread × volume", secs >= 0 ? "live " + secs + "s" : "");
 		y += 11;
 		if (list.isEmpty()) {
-			p.text(FcfPanel.fit(data.bazaarAll().isEmpty() ? "Loading the bazaar…" : "Nothing fits your budget", w - 2 * PAD), x + PAD, y, MUTED);
+			p.text(FcfPanel.fit(data.bazaarAll().isEmpty() ? "Loading the bazaar…" : Bazaar.busy() ? "Ranking…" : "Nothing fits your budget", w - 2 * PAD), x + PAD, y, MUTED);
 			return y + 10;
 		}
 		for (int i = 0; i < list.size() && y + R2 <= bottom; i++) {

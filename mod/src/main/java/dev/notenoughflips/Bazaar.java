@@ -48,6 +48,49 @@ final class Bazaar {
 	 * slower side must be at least 1/5 of the faster one, and a full round must fit in bazaarRoundHours.
 	 */
 	static List<Market.BzFlip> ranking(NefConfig cfg, DataClient data, double budget) {
+		Bazaar.data = data;
+		if (stale(cfg, data, budget) && QUEUED.compareAndSet(false, true)) {
+			WORK.execute(() -> {
+				try {
+					rankNow(cfg, data, budget);
+					spreadsNow(cfg, data, budget);
+				} catch (RuntimeException e) {
+					System.err.println("[NEF] bazaar ranking: " + e);
+				} finally {
+					QUEUED.set(false);
+				}
+			});
+		}
+		return ranked;
+	}
+
+	/** True while a re-rank is queued or running (the panel says "Ranking…" instead of "nothing fits"). */
+	static boolean busy() {
+		return QUEUED.get();
+	}
+
+	/**
+	 * Ranking ~1,400 products takes 10-30 ms: on the game thread that's a dropped frame every refresh. It runs on its own
+	 * thread instead; callers always get the last finished list at once.
+	 */
+	private static final java.util.concurrent.ExecutorService WORK = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+		Thread t = new Thread(r, "NEF bazaar ranking");
+		t.setDaemon(true);
+		t.setPriority(Thread.MIN_PRIORITY);
+		return t;
+	});
+	private static final java.util.concurrent.atomic.AtomicBoolean QUEUED = new java.util.concurrent.atomic.AtomicBoolean();
+
+	private static boolean stale(NefConfig cfg, DataClient data, double budget) {
+		long now = System.currentTimeMillis();
+		if (forecastOn != cfg.forecastFlips) return true;
+		boolean budgetMoved = rankedBudget <= 0 || Math.abs(rankedBudget - budget) > rankedBudget * 0.10;
+		boolean fresh = cfg.bazaarRefreshMinutes <= 0 ? data.bazaarAt() <= rankedAt : now - rankedAt < cfg.bazaarRefreshMinutes * 60_000L;
+		return rankedAt == 0 || budgetMoved || !fresh || spreadsAt != rankedAt;
+	}
+
+	/** The ranking itself (on the ranking thread; tests and benchmarks call it directly). */
+	static List<Market.BzFlip> rankNow(NefConfig cfg, DataClient data, double budget) {
 		long now = System.currentTimeMillis();
 		Bazaar.data = data;
 		Map<String, DataClient.Live> all = data.bazaarAll();
@@ -57,7 +100,7 @@ final class Bazaar {
 		}
 		boolean budgetMoved = rankedBudget <= 0 || Math.abs(rankedBudget - budget) > rankedBudget * 0.10;
 		boolean fresh = cfg.bazaarRefreshMinutes <= 0 ? data.bazaarAt() <= rankedAt : now - rankedAt < cfg.bazaarRefreshMinutes * 60_000L;
-		if (!ranked.isEmpty() && !budgetMoved && fresh) return ranked;
+		if (rankedAt != 0 && !budgetMoved && fresh) return ranked;
 		if (all.isEmpty()) return ranked;
 		List<Market.BzFlip> out = new ArrayList<>();
 		java.util.Set<String> event = eventMembers(data.bzSignals());
@@ -144,31 +187,39 @@ final class Bazaar {
 	 * row says whether NEF's stricter list agrees, and why not when it doesn't.
 	 */
 	static List<Spread> spreadRanking(NefConfig cfg, DataClient data, double budget) {
-		List<Market.BzFlip> mine = ranking(cfg, data, budget);
-		if (spreadsAt == rankedAt && !spreads.isEmpty()) return spreads;
+		ranking(cfg, data, budget);                                // re-ranks both lists in the background when stale
+		return spreads;
+	}
+
+	/** The spread list itself (ranking thread). Scores every product, but works out the full flip only for the top 50. */
+	static List<Spread> spreadsNow(NefConfig cfg, DataClient data, double budget) {
 		java.util.Set<String> ok = new java.util.HashSet<>();
-		for (Market.BzFlip f : passing.isEmpty() ? mine : passing) ok.add(f.id());
-		List<Spread> out = new ArrayList<>();
+		for (Market.BzFlip f : passing.isEmpty() ? ranked : passing) ok.add(f.id());
+		record Cand(String id, DataClient.Live l, double weekly, double score) {}
+		List<Cand> cands = new ArrayList<>();
 		for (Map.Entry<String, DataClient.Live> e : data.bazaarAll().entrySet()) {
 			DataClient.Live l = e.getValue();
 			double weekly = Math.min(l.buyWeek(), l.sellWeek());
 			double sc = spreadScore(l.sell(), l.buy(), weekly);
-			if (sc <= 0 || l.buy() > budget) continue;
-			double[] normal = data.bazaarNormalCached(e.getKey());
-			boolean manip = normal != null && spreadManipulated(l.buy(), normal[0]);
+			if (sc > 0 && l.buy() <= budget) cands.add(new Cand(e.getKey(), l, weekly, sc));
+		}
+		cands.sort((a, b) -> Double.compare(b.score(), a.score()));
+		List<Spread> out = new ArrayList<>();
+		for (Cand c : cands.subList(0, Math.min(50, cands.size()))) {
+			double[] normal = data.bazaarNormalCached(c.id());
+			boolean manip = normal != null && spreadManipulated(c.l().buy(), normal[0]);
 			String why = null;
-			if (!ok.contains(e.getKey())) {
-				String t = trap(l, normal);
-				why = t != null ? t : BzWatch.flash(e.getKey()) ? "the spread only opened briefly"
+			if (!ok.contains(c.id())) {
+				String t = trap(c.l(), normal);
+				why = t != null ? t : BzWatch.flash(c.id()) ? "the spread only opened briefly"
 						: manip ? "price far above its 7-day level" : "too slow to fill for you, or too thin";
 			}
-			out.add(new Spread(e.getKey(), l.sell(), l.buy(), weekly, sc, manip, why, flip(cfg, e.getKey(), l, budget)));
+			out.add(new Spread(c.id(), c.l().sell(), c.l().buy(), c.weekly(), c.score(), manip, why, flip(cfg, c.id(), c.l(), budget)));
 		}
-		out.sort((a, b) -> Double.compare(b.score(), a.score()));
 		for (int i = 0; i < Math.min(30, out.size()); i++) data.bazaarNormal(out.get(i).id());   // their 7-day level, for the flag
-		spreads = out.size() > 50 ? new ArrayList<>(out.subList(0, 50)) : out;
+		spreads = out;
 		spreadsAt = rankedAt;
-		return spreads;
+		return out;
 	}
 
 	/**
