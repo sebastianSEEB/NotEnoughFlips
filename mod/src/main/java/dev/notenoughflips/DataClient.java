@@ -516,7 +516,7 @@ final class DataClient {
 		return itemNames;
 	}
 
-	private static Map<String, Live> parseBazaar(JsonObject root) {
+	static Map<String, Live> parseBazaar(JsonObject root) {
 		long ts = root.has("lastUpdated") ? root.get("lastUpdated").getAsLong() : System.currentTimeMillis();
 		JsonObject products = root.getAsJsonObject("products");
 		Map<String, Live> out = new ConcurrentHashMap<>();
@@ -524,12 +524,15 @@ final class DataClient {
 			JsonObject q = e.getValue().getAsJsonObject().getAsJsonObject("quick_status");
 			if (q == null) continue;
 			JsonObject pr = e.getValue().getAsJsonObject();
-			out.put(e.getKey(), new Live(q.get("buyPrice").getAsDouble(), q.get("sellPrice").getAsDouble(), ts,
+			// the real top of the book, as the Bazaar menu shows it: quick_status prices are averages over the top 2 % of
+			// the volume and trail the actual best offer / order (the "prices lag" you see in game)
+			double topOffer = top(pr.get("buy_summary")), topOrder = top(pr.get("sell_summary"));
+			out.put(e.getKey(), new Live(topOffer > 0 ? topOffer : q.get("buyPrice").getAsDouble(),
+					topOrder > 0 ? topOrder : q.get("sellPrice").getAsDouble(), ts,
 					d(q, "buyMovingWeek"), d(q, "sellMovingWeek"), (int) d(q, "buyOrders"), (int) d(q, "sellOrders"),
 					near(pr.get("buy_summary"), false), near(pr.get("sell_summary"), true)));
 			try {                                                   // the exact top of each side, for the order-book watch
-				double order = top(pr.get("sell_summary")), offer = top(pr.get("buy_summary"));
-				if (order > 0 && offer > 0) BzWatch.observe(e.getKey(), ts, order, offer);
+				if (topOrder > 0 && topOffer > 0) BzWatch.observe(e.getKey(), ts, topOrder, topOffer);
 			} catch (RuntimeException ignored) {
 				// odd product: skip
 			}

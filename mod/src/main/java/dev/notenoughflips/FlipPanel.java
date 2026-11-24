@@ -334,6 +334,7 @@ final class FlipPanel {
 			sx += chipW(so[1]) + 2;
 		}
 		y += 15;
+		if ("spread".equals(cfg.bazaarSort)) return spreadList(p, x, y, w, bottom);
 		List<Market.BzFlip> list = Bazaar.sorted(cfg, data, budget(), cfg.bazaarSort);
 		double[] today = ProfitLog.marketTotal(ProfitLog.startOfDay(0), "BZ");
 		long age = Bazaar.snapshotAt() > 0 ? (System.currentTimeMillis() - Bazaar.snapshotAt()) / 60000 : -1;
@@ -364,6 +365,32 @@ final class FlipPanel {
 			y += R2;
 		}
 		p.text(FcfPanel.fit("click ×3: open/name · amount · price", w - 2 * PAD), x + PAD, y, DIM);
+		return y + 10;
+	}
+
+	/** The "Spread" sort: every product by the plain spread formula, flagged where NEF's own checks disagree. */
+	private static int spreadList(Highlight.Painter p, int x, int y, int w, int bottom) {
+		List<Bazaar.Spread> list = Bazaar.spreadRanking(cfg, data, budget());
+		long secs = Bazaar.snapshotAt() > 0 ? (System.currentTimeMillis() - Bazaar.snapshotAt()) / 1000 : -1;
+		section(p, x, y, w, "Spread × volume", secs >= 0 ? "live " + secs + "s" : "");
+		y += 11;
+		if (list.isEmpty()) {
+			p.text(FcfPanel.fit(data.bazaarAll().isEmpty() ? "Loading the bazaar…" : "Nothing fits your budget", w - 2 * PAD), x + PAD, y, MUTED);
+			return y + 10;
+		}
+		for (int i = 0; i < list.size() && y + R2 <= bottom; i++) {
+			Bazaar.Spread s = list.get(i);
+			String name = Bazaar.name(s.id(), data);
+			String detail = HudFormatter.fmt(s.order()) + "→" + HudFormatter.fmt(s.offer()) + " · "
+					+ HudFormatter.fmt(s.weekly() / 168) + " sold/h"
+					+ (s.manipulated() ? " · ⚠ likely manipulated" : "")
+					+ (s.nef() == null ? " · ✓ in NEF's list" : " · NEF skips: " + s.nef());
+			int col = s.manipulated() ? 0xFF888888 : s.nef() == null ? GOOD : WARN;
+			Runnable click = s.flip() != null ? () -> copyBazaar(s.flip(), name) : () -> Cmd.bazaar(name);
+			row(p, x, y, w, (s.manipulated() ? "[!] " : "") + name, "+" + HudFormatter.fmt(s.score()) + "/h", col, detail, click);
+			y += R2;
+		}
+		p.text(FcfPanel.fit("whole spread × every sale: a ceiling, not what you'll make", w - 2 * PAD), x + PAD, y, DIM);
 		return y + 10;
 	}
 

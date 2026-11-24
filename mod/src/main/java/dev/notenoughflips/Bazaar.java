@@ -110,8 +110,66 @@ final class Bazaar {
 		return ranked;
 	}
 
-	/** Sort orders for the Best flips list: id, chip label. */
-	static final String[][] SORTS = {{"hour", "/hour"}, {"profit", "Profit"}, {"pct", "%"}, {"volume", "Volume"}};
+	/** Sort orders for the Best flips list: id, chip label. "spread" = SkyCofl's public formula, every product. */
+	static final String[][] SORTS = {{"hour", "/hour"}, {"profit", "Profit"}, {"pct", "%"}, {"volume", "Volume"}, {"spread", "Spread"}};
+
+	static final double SPREAD_FEE = 0.0125;   // sell-side fee the spread ranking assumes
+
+	/**
+	 * One product in the spread ranking. score = (offer − order − offer × 1.25 %) × weekly sales ÷ 168: the whole spread
+	 * on every sale of the week, i.e. the most it could make an hour if you got every fill. manipulated = its sell offer
+	 * is over 2× its 7-day level (1.5× for items over 7.5M). nef = null when NEF's own list has it too, else why not.
+	 */
+	record Spread(String id, double order, double offer, double weekly, double score, boolean manipulated, String nef, Market.BzFlip flip) {}
+
+	/** Pure: the spread score per hour. */
+	static double spreadScore(double order, double offer, double weekly) {
+		if (order <= 0 || offer <= order || weekly <= 0) return 0;
+		return (offer - order - offer * SPREAD_FEE) * weekly / 168.0;
+	}
+
+	/** Pure: the manipulation flag the spread list uses. */
+	static boolean spreadManipulated(double offer, double normalOffer) {
+		if (normalOffer <= 0) return false;
+		double r = offer / normalOffer;
+		return r > 2 || r > 1.5 && offer > 7_500_000;
+	}
+
+	private static volatile List<Spread> spreads = List.of();
+	private static volatile long spreadsAt = -1;
+
+	/**
+	 * Every product ranked by the plain spread formula (the list other bazaar sites and mods show, including the top
+	 * entries some of them keep for paying users). Few filters on purpose: only affordable and actually traded. Each
+	 * row says whether NEF's stricter list agrees, and why not when it doesn't.
+	 */
+	static List<Spread> spreadRanking(NefConfig cfg, DataClient data, double budget) {
+		List<Market.BzFlip> mine = ranking(cfg, data, budget);
+		if (spreadsAt == rankedAt && !spreads.isEmpty()) return spreads;
+		java.util.Set<String> ok = new java.util.HashSet<>();
+		for (Market.BzFlip f : passing.isEmpty() ? mine : passing) ok.add(f.id());
+		List<Spread> out = new ArrayList<>();
+		for (Map.Entry<String, DataClient.Live> e : data.bazaarAll().entrySet()) {
+			DataClient.Live l = e.getValue();
+			double weekly = Math.min(l.buyWeek(), l.sellWeek());
+			double sc = spreadScore(l.sell(), l.buy(), weekly);
+			if (sc <= 0 || l.buy() > budget) continue;
+			double[] normal = data.bazaarNormalCached(e.getKey());
+			boolean manip = normal != null && spreadManipulated(l.buy(), normal[0]);
+			String why = null;
+			if (!ok.contains(e.getKey())) {
+				String t = trap(l, normal);
+				why = t != null ? t : BzWatch.flash(e.getKey()) ? "the spread only opened briefly"
+						: manip ? "price far above its 7-day level" : "too slow to fill for you, or too thin";
+			}
+			out.add(new Spread(e.getKey(), l.sell(), l.buy(), weekly, sc, manip, why, flip(cfg, e.getKey(), l, budget)));
+		}
+		out.sort((a, b) -> Double.compare(b.score(), a.score()));
+		for (int i = 0; i < Math.min(30, out.size()); i++) data.bazaarNormal(out.get(i).id());   // their 7-day level, for the flag
+		spreads = out.size() > 50 ? new ArrayList<>(out.subList(0, 50)) : out;
+		spreadsAt = rankedAt;
+		return spreads;
+	}
 
 	/**
 	 * The same safe flips (same checks as {@link #ranking}) in the order you picked: profit per hour (default), most

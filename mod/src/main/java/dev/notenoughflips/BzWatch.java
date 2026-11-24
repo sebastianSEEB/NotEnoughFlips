@@ -96,7 +96,7 @@ final class BzWatch {
 	/** After a whole snapshot was read. */
 	static void snapshotDone() {
 		long now = System.currentTimeMillis();
-		if (now - savedAt > 5 * 60_000L) {
+		if (cfg != null && now - savedAt > 5 * 60_000L) {                  // not before init (tests, early loads)
 			savedAt = now;
 			save();
 		}

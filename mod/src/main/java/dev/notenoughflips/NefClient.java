@@ -112,8 +112,8 @@ public final class NefClient implements ClientModInitializer {
 			Accounts.tick();                                               // another account → its own files
 			Sniper.clientTick();                                           // auto-open that waited for chat to close
 			Keys.tick(config);                                             // O: bazaar orders HUD on/off
-			try {                                                          // keep the bazaar snapshot fresh: the order-book watch needs it
-				if (config.bazaarBookWatch && Minecraft.getInstance().player != null && Minecraft.getInstance().player.tickCount % 600 == 0)
+			try {                                                          // bazaar prices every 30 s while you play (ranking, tooltips, order watch)
+				if (config.useHypixelApi && Minecraft.getInstance().player != null && Minecraft.getInstance().player.tickCount % 600 == 0)
 					data.bazaarAll();
 			} catch (RuntimeException ignored) {
 				// next time
