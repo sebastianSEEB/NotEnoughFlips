@@ -190,6 +190,7 @@ def backfill(store: dict, now_s: float, budget: int, weeks: int = 26, top: int =
              minutes: float = 30) -> int:
     """Fetch missing weeks (most traded products first, newest weeks first) until budget requests are used or
     `minutes` of wall time pass, so the run always gets to save what it fetched before the job's time limit."""
+    backfill.more = False                              # set when the run stopped with weeks still missing
     if budget <= 0:
         return 0
     stop = time.monotonic() + minutes * 60
@@ -208,6 +209,7 @@ def backfill(store: dict, now_s: float, budget: int, weeks: int = 26, top: int =
             if key in store["done"]:
                 continue
             if used >= budget or time.monotonic() >= stop:
+                backfill.more = True
                 return used
             try:
                 rows = cofl_week(pid, end)
@@ -322,6 +324,11 @@ def main(site_dir: str, budget: str = "600", minutes: str = "30") -> None:
     store = load_store(path)
     added = add_snapshot(store, HypixelClient("https://api.hypixel.net/v2", "NotEnoughFlips data").bazaar(), now)
     used = backfill(store, now, int(budget), minutes=float(minutes))
+    more = Path("season-more.txt")                        # tells the workflow to start another backfill run
+    if getattr(backfill, "more", False) and used > 0:
+        more.write_text(str(used))
+    elif more.exists():
+        more.unlink()
     trim(store, now)
     with gzip.open(path, "wt", encoding="utf-8") as f:
         json.dump(store, f, separators=(",", ":"))

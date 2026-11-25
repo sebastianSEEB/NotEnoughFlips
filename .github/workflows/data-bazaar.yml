@@ -8,13 +8,17 @@ on:
   workflow_dispatch:
     inputs:
       backfill:
-        description: "SkyCofl requests for the seasonality backfill this run (hourly runs use 600)"
-        default: "600"
+        description: "SkyCofl requests for the seasonality backfill this run (scheduled runs use 3000, capped at 30 min)"
+        default: "3000"
+      chain:
+        description: "Backfill runs started one after another so far (stops at 10)"
+        default: "0"
   schedule:
     - cron: "7 * * * *"
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: gh-pages
@@ -35,5 +39,12 @@ jobs:
       - run: tools/pages.sh clone site
       - run: set -o pipefail; python tools/bz_history.py site 2000 | tee -a $GITHUB_STEP_SUMMARY
       - run: python tests/test_seasonality.py
-      - run: set -o pipefail; python -u tools/seasonality.py site ${{ inputs.backfill || '600' }} 30 | tee -a $GITHUB_STEP_SUMMARY
+      - run: set -o pipefail; python -u tools/seasonality.py site ${{ inputs.backfill || '3000' }} 30 | tee -a $GITHUB_STEP_SUMMARY
       - run: tools/pages.sh push site
+      # Older weeks still missing: start the next backfill run straight away (at most 10 in a row), instead of
+      # waiting for the schedule, which GitHub only fires a few times a day.
+      - name: Continue the backfill
+        if: ${{ hashFiles('season-more.txt') != '' && fromJSON(inputs.chain || '0') < 10 }}
+        run: >
+          gh api -X POST repos/${{ github.repository }}/actions/workflows/data-bazaar.yml/dispatches
+          -f ref=${{ github.ref_name }} -f "inputs[backfill]=3000" -f "inputs[chain]=${{ fromJSON(inputs.chain || '0') + 1 }}"
