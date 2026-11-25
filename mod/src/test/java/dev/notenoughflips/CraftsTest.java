@@ -190,8 +190,8 @@ class CraftsTest {
 		// an ender chest / backpack blob: 64 + 10 Diamond, 3 Enchanted Coal, one empty slot
 		Map<String, Long> m = new HashMap<>();
 		AhScanner.countItems("H4sIAMIxBmsC/+NiYOBkYMzkYmBgYGFkYHXOL80rceBiYC5JTOdi4HetKClKdCwpKcpMKi1JLeZgYMpMYWB38XT09fdzAWphgGnhIloLTAczfh18rn7OHo5+Ia4u8c7+jj4guwA7w4D4qwAAAA==", m);
-		assertEquals(74, m.get("DIAMOND"));
-		assertEquals(3, m.get("ENCHANTED_COAL"));
+		assertEquals(74L, m.get("DIAMOND").longValue());
+		assertEquals(3L, m.get("ENCHANTED_COAL").longValue());
 		assertEquals(2, m.size());
 	}
 }
