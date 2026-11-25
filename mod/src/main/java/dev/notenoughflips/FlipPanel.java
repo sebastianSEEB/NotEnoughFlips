@@ -509,15 +509,14 @@ final class FlipPanel {
 		double budget = budget();
 		JsonArray arr = cj.getAsJsonArray("flips");
 		List<JsonObject> fit = new ArrayList<>(), over = new ArrayList<>();
+		int unsure = 0;
 		for (JsonElement e : arr) {
 			JsonObject r = e.getAsJsonObject();
-			String un = FcfPanel.str(r, "unlocked");
-			if (un == null) {                                       // published list: check the unlock here
-				Boolean ok = Unlocks.meets(FcfPanel.str(r, "requires"));
-				un = ok == null ? "maybe" : ok ? "yes" : "no";
-				r.addProperty("unlocked", un);
+			String un = unlocked(r);
+			if (cfg.craftMineOnly && !"yes".equals(un)) {           // "mine" = recipes it has checked you have
+				if ("maybe".equals(un)) unsure++;
+				continue;
 			}
-			if (cfg.craftMineOnly && "no".equals(un)) continue;
 			(FcfPanel.d(r, "cost") <= budget ? fit : over).add(r);
 		}
 		boolean overBudget = fit.isEmpty();
@@ -569,12 +568,26 @@ final class FlipPanel {
 				}
 			}
 		}
+		if (unsure > 0 && y + 20 <= bottom) {
+			p.text(FcfPanel.fit(unsure + " more need an unlock it can't check (Recipes: all)", w - 2 * PAD), x + PAD, y, DIM);
+			y += 10;
+		}
 		p.text(FcfPanel.fit("click a craft = what to buy (click to open)", w - 2 * PAD), x + PAD, y, DIM);
 		return y + 10;
 	}
 
 	private static String craftSel;
 	private static boolean craftFromMine;
+
+	/** "yes" / "no" / "maybe" for a craft row, worked out again whenever your profile or the collection names change. */
+	static String unlocked(JsonObject r) {
+		int st = Unlocks.stamp();
+		if (r.has("unlocked_at") && r.get("unlocked_at").getAsInt() == st && r.has("unlocked")) return FcfPanel.str(r, "unlocked");
+		String un = Unlocks.status(FcfPanel.str(r, "requires"));
+		r.addProperty("unlocked", un);
+		r.addProperty("unlocked_at", st);
+		return un;
+	}
 
 	/** "my stuff": crafts you can make from what you already have, worth more than the materials sold as they are. */
 	private static int craftNow(Highlight.Painter p, int x, int y, int w, int bottom, JsonObject live) {
@@ -600,6 +613,7 @@ final class FlipPanel {
 		for (JsonElement e : arr) {
 			if (y + R2 > bottom) break;
 			JsonObject r = e.getAsJsonObject();
+			if (cfg.craftMineOnly && !"yes".equals(unlocked(r))) continue;
 			String item = FcfPanel.str(r, "item"), name = FcfPanel.str(r, "name"), where = FcfPanel.str(r, "where");
 			long n = (long) FcfPanel.d(r, "can_make");
 			String detail = n + "× · +" + HudFormatter.fmt(FcfPanel.d(r, "gain")) + " each vs selling the materials ("

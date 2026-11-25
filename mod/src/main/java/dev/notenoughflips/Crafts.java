@@ -337,16 +337,18 @@ final class Crafts {
 				if (o != null && (bestNow == null || o.get("total").getAsDouble() > bestNow.get("total").getAsDouble())) bestNow = o;
 			}
 			if (bestNow != null && !Boolean.FALSE.equals(Unlocks.meets(HudFormatter.str(bestNow, "requires")))) now.add(bestNow);
-			JsonObject best = null;
+			// the best recipe you have for this item; only if you have none, the best one overall
+			JsonObject best = null, bestMine = null;
 			for (Recipe r : rs) {
 				JsonObject o = evaluate(r, p, memo, budget);
-				if (o != null && (best == null || o.get("profit_per_day").getAsDouble() > best.get("profit_per_day").getAsDouble())) best = o;
+				if (o == null) continue;
+				o.addProperty("unlocked", Unlocks.status(HudFormatter.str(o, "requires")));
+				if (best == null || o.get("profit_per_day").getAsDouble() > best.get("profit_per_day").getAsDouble()) best = o;
+				if ("yes".equals(HudFormatter.str(o, "unlocked"))
+						&& (bestMine == null || o.get("profit_per_day").getAsDouble() > bestMine.get("profit_per_day").getAsDouble())) bestMine = o;
 			}
-			if (best != null) {
-				Boolean ok = Unlocks.meets(HudFormatter.str(best, "requires"));
-				best.addProperty("unlocked", ok == null ? "maybe" : ok ? "yes" : "no");
-				rows.add(best);
-			}
+			if (bestMine != null) rows.add(bestMine);
+			else if (best != null) rows.add(best);
 		}
 		// auction outputs nobody has sales for yet: fetch them in the background for the next round
 		if (NefClient.cofl != null && !wanted.isEmpty())
@@ -356,8 +358,12 @@ final class Crafts {
 		res.addProperty("updated", System.currentTimeMillis());
 		res.addProperty("budget", budget);
 		res.addProperty("live", true);
+		// the top 150 you can make and the top 150 you can't (yet), so "mine" never runs short
 		JsonArray arr = new JsonArray();
-		for (JsonObject r : rows.subList(0, Math.min(150, rows.size()))) {
+		int yes = 0, other = 0;
+		for (JsonObject r : rows) {
+			boolean m = "yes".equals(HudFormatter.str(r, "unlocked"));
+			if (m ? yes++ >= 150 : other++ >= 150) continue;
 			r.addProperty("name", Desk.pretty(HudFormatter.str(r, "item")));
 			arr.add(r);
 		}

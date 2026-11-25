@@ -30,6 +30,7 @@ final class Unlocks {
 	private static volatile boolean known;
 	private static volatile Map<String, String> names = Map.of();        // "ender pearl" → ENDER_PEARL
 	private static volatile long namesAt;
+	private static volatile int stamp;                                    // changes whenever what's known changes
 	private static final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
 	/** Total HotM experience needed for tiers 1..10. */
@@ -39,7 +40,19 @@ final class Unlocks {
 		return known;
 	}
 
+	/** Bumps when your profile or the collection names change, so cached "unlocked" marks can be redone. */
+	static int stamp() {
+		return stamp;
+	}
+
+	/** "yes" (you have it, or it needs nothing), "no", or "maybe" (can't check it). */
+	static String status(String req) {
+		Boolean ok = meets(req);
+		return ok == null ? "maybe" : ok ? "yes" : "no";
+	}
+
 	static void reset() {
+		stamp++;
 		known = false;
 		coll = Map.of();
 		slayer = Map.of();
@@ -85,6 +98,7 @@ final class Unlocks {
 		slayer = sl;
 		hotm = xp == null ? -1 : hotmTier(xp);
 		known = !c.isEmpty() || !sl.isEmpty();
+		stamp++;
 		loadNames();
 	}
 
@@ -105,6 +119,7 @@ final class Unlocks {
 			if (e != null || r.statusCode() != 200) return;
 			try {
 				names = parseNames(JsonParser.parseString(r.body()).getAsJsonObject());
+				stamp++;
 			} catch (RuntimeException ignored) {
 				// try later
 			}
@@ -134,6 +149,7 @@ final class Unlocks {
 		hotm = hotmTier;
 		names = collectionNames;
 		known = true;
+		stamp++;
 	}
 
 	private static final Pattern SLAYER = Pattern.compile("(?i)^(zombie|spider|wolf|enderman|blaze|vampire) slayer (\\d+)$");
@@ -147,9 +163,10 @@ final class Unlocks {
 	static Boolean meets(String req) {
 		if (req == null || req.isBlank()) return Boolean.TRUE;
 		if (!known) return null;
+		if (names.isEmpty()) loadNames();                                   // the first try failed or isn't back yet
 		boolean unsure = false;
 		for (String part : req.split("&")) {
-			String p = part.trim();
+			String p = part.trim().replaceFirst("(?i)^requires\\s+", "");
 			Matcher m;
 			if ((m = SLAYER.matcher(p)).matches()) {
 				if (slayer.getOrDefault(m.group(1).toLowerCase(Locale.ROOT), 0) < Integer.parseInt(m.group(2))) return Boolean.FALSE;

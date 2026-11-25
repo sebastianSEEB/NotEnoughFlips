@@ -34,6 +34,19 @@ class CraftsTest {
 	}
 
 	@Test
+	void unlockMarksAreRedoneWhenNamesArrive() {
+		Unlocks.set(Map.of("MUSHROOM_COLLECTION", 3), Map.of(), 2, Map.of("diamond", "DIAMOND"));
+		com.google.gson.JsonObject row = new com.google.gson.JsonObject();
+		row.addProperty("requires", "Requires Mushroom II");
+		assertEquals("maybe", FlipPanel.unlocked(row), "name not known yet: can't check");
+		Unlocks.set(Map.of("MUSHROOM_COLLECTION", 3), Map.of(), 2, Map.of("mushroom", "MUSHROOM_COLLECTION"));
+		assertEquals("yes", FlipPanel.unlocked(row), "checked again once the names are in; 'Requires' is ignored");
+		Unlocks.set(Map.of("MUSHROOM_COLLECTION", 1), Map.of(), 2, Map.of("mushroom", "MUSHROOM_COLLECTION"));
+		assertEquals("no", FlipPanel.unlocked(row));
+		assertEquals("yes", Unlocks.status(null), "no requirement: everyone has it");
+	}
+
+	@Test
 	void romanAndHotm() {
 		assertEquals(4, Unlocks.roman("IV"));
 		assertEquals(9, Unlocks.roman("IX"));
