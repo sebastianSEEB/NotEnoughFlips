@@ -1,10 +1,15 @@
 name: Data · bazaar history and forecasts
 
 # Hourly: one bazaar snapshot into the rolling 14-day history, 7-day charts per product, and
-# 1 h / 6 h / 24 h forecasts (tools/bz_history.py → market/forecast.py).
+# 1 h / 6 h / 24 h forecasts (tools/bz_history.py → market/forecast.py); then the long 2-hour history, a limited
+# SkyCofl backfill of older weeks, and the SkyBlock-year seasonality analysis (tools/seasonality.py).
 
 on:
   workflow_dispatch:
+    inputs:
+      backfill:
+        description: "SkyCofl requests for the seasonality backfill this run (hourly runs use 600)"
+        default: "600"
   schedule:
     - cron: "7 * * * *"
 
@@ -18,7 +23,7 @@ concurrency:
 jobs:
   bazaar:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 50
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -29,4 +34,6 @@ jobs:
       - run: python tests/test_forecast.py
       - run: tools/pages.sh clone site
       - run: set -o pipefail; python tools/bz_history.py site 2000 | tee -a $GITHUB_STEP_SUMMARY
+      - run: python tests/test_seasonality.py
+      - run: set -o pipefail; python tools/seasonality.py site ${{ inputs.backfill || '600' }} | tee -a $GITHUB_STEP_SUMMARY
       - run: tools/pages.sh push site
