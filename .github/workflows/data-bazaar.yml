@@ -45,6 +45,8 @@ jobs:
       # waiting for the schedule, which GitHub only fires a few times a day.
       - name: Continue the backfill
         if: ${{ hashFiles('season-more.txt') != '' && fromJSON(inputs.chain || '0') < 10 }}
-        run: >
-          gh api -X POST repos/${{ github.repository }}/actions/workflows/data-bazaar.yml/dispatches
-          -f ref=${{ github.ref_name }} -f "inputs[backfill]=3000" -f "inputs[chain]=${{ fromJSON(inputs.chain || '0') + 1 }}"
+        env:
+          CHAIN: ${{ inputs.chain || '0' }}
+        run: |
+          gh api -X POST repos/${{ github.repository }}/actions/workflows/data-bazaar.yml/dispatches \
+            -f ref=${{ github.ref_name }} -f "inputs[backfill]=3000" -f "inputs[chain]=$((CHAIN + 1))"
