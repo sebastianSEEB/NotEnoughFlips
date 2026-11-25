@@ -32,6 +32,10 @@ New BINs can't be bought for their first 20 seconds. The mod counts that hold do
 
 It also looks where macros don't. Upgrade snipes catch copies priced like a plain one but carrying stars, a recomb, gems or big enchants worth much more. Ending-auction alerts point out regular auctions about to end well under value, with the most you can bid and still profit.
 
+## Craft flips for your recipes
+
+The Craft tab works out, every minute, which crafts sell for more than their ingredients cost, using live bazaar, NPC and auction prices. With your API key it reads your collections, slayer levels and Heart of the Mountain from your profile and only shows recipes you've actually unlocked. Click a craft for the shopping list; click an ingredient to go and buy it.
+
 ## Spread ranking
 
 The bazaar list also has a Spread sort: every product ranked by the plain spread-times-volume formula other bazaar tools use, with nothing hidden, likely manipulated items marked, and a note on each row saying whether NEF's stricter list agrees.

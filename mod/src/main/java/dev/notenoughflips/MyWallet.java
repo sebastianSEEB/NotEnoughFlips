@@ -33,6 +33,7 @@ final class MyWallet {
 
 	/** Account switched: forget the other account's bank. */
 	static void reset() {
+		Unlocks.reset();
 		last = null;
 		askedAt = 0;
 		error = null;
@@ -63,7 +64,9 @@ final class MyWallet {
 			if (r.statusCode() == 403) { error = "Hypixel refused your API key"; return; }
 			if (r.statusCode() != 200) { error = "Hypixel API: HTTP " + r.statusCode(); return; }
 			try {
-				JsonObject w = parse(JsonParser.parseString(r.body()).getAsJsonObject(), uuid);
+				JsonObject root = JsonParser.parseString(r.body()).getAsJsonObject();
+				if (uuid.equals(currentUuid())) Unlocks.fromProfile(member(root, uuid));   // which recipes you have (craft flips)
+				JsonObject w = parse(root, uuid);
 				if (w != null && !w.has("error") && uuid.equals(currentUuid())) {
 					w.addProperty("at", System.currentTimeMillis());
 					last = w;
@@ -78,6 +81,18 @@ final class MyWallet {
 	private static String currentUuid() {
 		Minecraft mc = Minecraft.getInstance();
 		return mc.player == null ? "" : mc.player.getUUID().toString().replace("-", "").toLowerCase(Locale.ROOT);
+	}
+
+	/** Your member entry in the selected profile, or null. */
+	static JsonObject member(JsonObject profiles, String uuid) {
+		if (!profiles.has("profiles") || !profiles.get("profiles").isJsonArray()) return null;
+		JsonObject sel = null;
+		for (var e : profiles.getAsJsonArray("profiles")) {
+			JsonObject p = e.getAsJsonObject();
+			if (sel == null || p.has("selected") && p.get("selected").getAsBoolean()) sel = p;
+		}
+		JsonObject ms = sel == null ? null : HudFormatter.obj(sel, "members");
+		return ms != null && ms.has(uuid) ? ms.getAsJsonObject(uuid) : null;
 	}
 
 	/** Pure: Bidders.wallet() plus your personal bank (profile.bank_account of your own member entry). */

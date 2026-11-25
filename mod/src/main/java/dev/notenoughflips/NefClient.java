@@ -151,6 +151,7 @@ public final class NefClient implements ClientModInitializer {
 					BzOrders.check();                                      // bazaar orders outbid / undercut (every 30 s)
 					if (config.setupDone) FlipFeed.tick(FlipPanel.budget());   // announce the best new AH flips
 					Bazaar.ranking(config, data, FlipPanel.budget());          // keeps the 5-minute bazaar flip snapshot fresh
+					Crafts.tick(config, data, FlipPanel.budget());             // craft flips from live prices, once a minute
 				} catch (RuntimeException e) {
 					System.err.println("[NEF] tick: " + e);
 				}

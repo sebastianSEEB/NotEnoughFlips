@@ -479,10 +479,22 @@ final class FlipPanel {
 	}
 
 	private static int craft(Highlight.Painter p, int x, int y, int w, int bottom) {
-		JsonObject cj = data.craftFlips();
-		section(p, x, y, w, "Craft flips", cj == null ? "" : "updated " + Math.max(0, (System.currentTimeMillis()
-				- (long) FcfPanel.d(cj, "updated")) / 3_600_000L) + "h ago");
+		JsonObject live = cfg.craftLive ? Crafts.list() : null;
+		JsonObject cj = live != null ? live : data.craftFlips();
+		long ageMs = cj == null ? 0 : Math.max(0, System.currentTimeMillis() - (long) FcfPanel.d(cj, "updated"));
+		section(p, x, y, w, "Craft flips", cj == null ? "" : live != null ? "live " + ageMs / 1000 + "s" : "updated " + ageMs / 3_600_000L + "h ago");
 		y += 11;
+		// whose recipes: only the ones you have (when your profile is known), or all of them
+		int ox = optLabel(p, x, y, "Recipes");
+		chip(p, ox, y, "mine", cfg.craftMineOnly, () -> { cfg.craftMineOnly = true; cfg.save(); });
+		ox += chipW("mine") + 2;
+		chip(p, ox, y, "all", !cfg.craftMineOnly, () -> { cfg.craftMineOnly = false; cfg.save(); });
+		y += 13;
+		if (cfg.craftMineOnly && !Unlocks.known()) {
+			p.text(FcfPanel.fit(cfg.hypixelApiKey == null || cfg.hypixelApiKey.isBlank()
+					? "/nef apikey <key> so it knows your recipes" : "reading your recipes…", w - 2 * PAD), x + PAD, y, WARN);
+			y += 10;
+		}
 		if (cj == null || !cj.has("flips")) {
 			p.text("Loading…", x + PAD, y, MUTED);
 			return y + 10;
@@ -490,7 +502,17 @@ final class FlipPanel {
 		double budget = budget();
 		JsonArray arr = cj.getAsJsonArray("flips");
 		List<JsonObject> fit = new ArrayList<>(), over = new ArrayList<>();
-		for (JsonElement e : arr) (FcfPanel.d(e.getAsJsonObject(), "cost") <= budget ? fit : over).add(e.getAsJsonObject());
+		for (JsonElement e : arr) {
+			JsonObject r = e.getAsJsonObject();
+			String un = FcfPanel.str(r, "unlocked");
+			if (un == null) {                                       // published list: check the unlock here
+				Boolean ok = Unlocks.meets(FcfPanel.str(r, "requires"));
+				un = ok == null ? "maybe" : ok ? "yes" : "no";
+				r.addProperty("unlocked", un);
+			}
+			if (cfg.craftMineOnly && "no".equals(un)) continue;
+			(FcfPanel.d(r, "cost") <= budget ? fit : over).add(r);
+		}
 		boolean overBudget = fit.isEmpty();
 		if (overBudget) {                                          // nothing fits: show the cheapest ones anyway
 			over.sort((a, b) -> Double.compare(FcfPanel.d(a, "cost"), FcfPanel.d(b, "cost")));
@@ -503,11 +525,14 @@ final class FlipPanel {
 			String item = FcfPanel.str(r, "item");
 			String name = FcfPanel.str(r, "name");
 			String where = FcfPanel.str(r, "where");
+			String un = FcfPanel.str(r, "unlocked"), req = FcfPanel.str(r, "requires");
+			boolean locked = "no".equals(un);
 			String detail = HudFormatter.fmt(FcfPanel.d(r, "cost")) + " → " + HudFormatter.fmt(FcfPanel.d(r, "sell"))
-					+ " " + where + " · +" + HudFormatter.fmt(FcfPanel.d(r, "profit")) + " ea";
+					+ " " + where + " · +" + HudFormatter.fmt(FcfPanel.d(r, "profit")) + " ea"
+					+ (locked ? " · 🔒 needs " + req : "maybe".equals(un) && req != null ? " · needs " + req + "?" : "");
 			boolean sel = item != null && item.equals(craftSel);
-			row(p, x, y, w, (sel ? "▾ " : "▸ ") + (name == null ? item : name), "+" + HudFormatter.fmt(FcfPanel.d(r, "profit_per_day")) + "/d",
-					GOOD, detail, () -> {
+			row(p, x, y, w, (sel ? "▾ " : "▸ ") + (locked ? "🔒 " : "") + (name == null ? item : name),
+					"+" + HudFormatter.fmt(FcfPanel.d(r, "profit_per_day")) + "/d", locked ? MUTED : GOOD, detail, () -> {
 						craftSel = item != null && item.equals(craftSel) ? null : item;
 						if (craftSel != null) craftChat(r);
 					});
