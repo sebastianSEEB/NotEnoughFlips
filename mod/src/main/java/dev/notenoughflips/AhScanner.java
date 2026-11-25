@@ -431,6 +431,28 @@ final class AhScanner {
 		identify(b64, key, count, variant, spec, null);
 	}
 
+	/**
+	 * Every item in a profile inventory blob (inv_contents, ender chest, a backpack…: base64 gzipped NBT like item_bytes,
+	 * but with many items), added to into as SkyBlock id → count. Empty slots are skipped.
+	 */
+	static void countItems(String b64, Map<String, Long> into) throws IOException {
+		if (b64 == null || b64.isEmpty()) return;
+		byte[] raw = Base64.getDecoder().decode(b64);
+		Object root;
+		try (DataInputStream in = new DataInputStream(new GZIPInputStream(new ByteArrayInputStream(raw)))) {
+			if (in.readByte() != 10) return;
+			in.readUTF();
+			root = readPayload(in, 10);
+		}
+		if (!(((Map<?, ?>) root).get("i") instanceof List<?> l)) return;
+		for (Object o : l) {
+			if (!(o instanceof Map<?, ?> it) || !(it.get("tag") instanceof Map<?, ?> tag)
+					|| !(tag.get("ExtraAttributes") instanceof Map<?, ?> ea) || !(ea.get("id") instanceof String id) || id.isEmpty()) continue;
+			int n = it.get("Count") instanceof Number c ? Math.max(1, c.intValue()) : 1;
+			into.merge(id, (long) n, Long::sum);
+		}
+	}
+
 	/** Same, plus attrs[0] = the upgrades in the tooltip valuation's form (null for pets / books). */
 	static void identify(String b64, String[] key, int[] count, String[] variant, Spec[] spec, Valuation.Attrs[] attrs) throws IOException {
 		byte[] raw = Base64.getDecoder().decode(b64);

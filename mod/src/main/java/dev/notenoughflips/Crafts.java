@@ -123,6 +123,44 @@ final class Crafts {
 
 		/** {sell price ceiling, sales per day} for an auction item, or null when unknown. */
 		double[] auction(String id);
+
+		/** How many you have (inventory + sacks + storage). */
+		default long have(String id) {
+			return 0;
+		}
+
+		/** What one you already own is worth if you sold it instead (insta-sell after tax, NPC, or lowest BIN after fees). */
+		default double ownedValue(String id) {
+			DataClient.Live l = bazaar(id);
+			if (l != null && l.sell() > 0) return l.sell() * (1 - BZ_TAX);
+			double npc = LocalComponents.npcSellPrice(id);
+			double lb = lowestBin(id);
+			return Math.max(npc > 0 ? npc : 0, lb > 0 ? Verdict.netAfterFees(lb * 0.99) : 0);
+		}
+	}
+
+	/** What a craft's output sells for: {sell price, net after tax/fees, sales per day}, where; or null. */
+	record Revenue(double sell, double net, double perDay, String where) {}
+
+	static Revenue revenue(String out, Prices p) {
+		DataClient.Live l = p.bazaar(out);
+		if (l != null && l.buy() > 0) {
+			double sell = l.buy() - 0.1;                             // a sell offer at the current cheapest
+			return new Revenue(sell, sell * (1 - BZ_TAX), l.buyWeek() / 7.0, "bazaar");   // insta-buys a day eat sell offers
+		}
+		double[] ah = p.auction(out);
+		if (ah == null) return null;
+		double lb = p.lowestBin(out);
+		double sell = lb > 0 ? lb * 0.99 : ah[0];
+		if (ah[0] > 0) sell = Math.min(sell, ah[0]);                 // never above what it actually sells for
+		return new Revenue(sell, Verdict.netAfterFees(sell), ah[1], "AH");
+	}
+
+	/** How many times you can make it from what you have, buying nothing. Pure. */
+	static long canMake(Recipe r, Prices p) {
+		long n = Long.MAX_VALUE;
+		for (Ing g : r.ings()) n = Math.min(n, (long) Math.floor(p.have(g.id()) / g.n()));
+		return n == Long.MAX_VALUE ? 0 : n * r.makes();
 	}
 
 	record Cost(double unit, String how) {}
@@ -169,24 +207,10 @@ final class Crafts {
 		Double total = craftCost(r, 1, p, memo);
 		if (total == null || total <= 0) return null;
 		double per = total / r.makes();
-		double sell, net, perDay;
-		String where;
-		DataClient.Live out = p.bazaar(r.out());
-		if (out != null && out.buy() > 0) {
-			sell = out.buy() - 0.1;                                  // a sell offer at the current cheapest
-			net = sell * (1 - BZ_TAX);
-			perDay = out.buyWeek() / 7.0;                            // insta-buys a day: what eats sell offers
-			where = "bazaar";
-		} else {
-			double[] ah = p.auction(r.out());
-			if (ah == null) return null;
-			double lb = p.lowestBin(r.out());
-			sell = lb > 0 ? lb * 0.99 : ah[0];
-			if (ah[0] > 0) sell = Math.min(sell, ah[0]);           // never above what it actually sells for
-			net = Verdict.netAfterFees(sell);
-			perDay = ah[1];
-			where = "AH";
-		}
+		Revenue rv = revenue(r.out(), p);
+		if (rv == null) return null;
+		double sell = rv.sell(), net = rv.net(), perDay = rv.perDay();
+		String where = rv.where();
 		double profit = net - per, margin = profit / per;
 		if (margin < MIN_MARGIN || margin > MAX_MARGIN || perDay < 1) return null;   // > 150 %: thin or bad data
 		double crafts = Math.min(perDay * SHARE, budget / Math.max(per, 1));
@@ -210,6 +234,47 @@ final class Crafts {
 			gi.addProperty("n", g.n());
 			gi.addProperty("unit", Math.round(c.unit() * 10) / 10.0);
 			gi.addProperty("how", c.how());
+			gi.addProperty("have", p.have(g.id()));
+			parts.add(gi);
+		}
+		o.add("ingredients", parts);
+		o.addProperty("can_make", canMake(r, p));
+		return o;
+	}
+
+	/**
+	 * A craft from what you already have: worth doing when the result sells for more than the materials would on their
+	 * own (each valued at what you'd get selling it now). gain = per craft; total = gain × how many you can make.
+	 */
+	static JsonObject evaluateOwned(Recipe r, Prices p) {
+		if (r.soulbound()) return null;
+		long n = canMake(r, p);
+		if (n < 1) return null;
+		Revenue rv = revenue(r.out(), p);
+		if (rv == null || rv.perDay() < 1) return null;
+		double mats = 0;
+		for (Ing g : r.ings()) mats += p.ownedValue(g.id()) * g.n();
+		double matsPer = mats / r.makes(), gain = rv.net() - matsPer;
+		if (gain <= 0 || matsPer > 0 && gain < matsPer * 0.03) return null;  // not clearly better than selling the materials
+		long sellable = (long) Math.max(1, Math.min(n, Math.ceil(rv.perDay())));   // more than a day's sales won't sell soon
+		JsonObject o = new JsonObject();
+		o.addProperty("item", r.out());
+		o.addProperty("where", rv.where());
+		o.addProperty("sell", Math.round(rv.sell()));
+		o.addProperty("mats", Math.round(matsPer));
+		o.addProperty("gain", Math.round(gain));
+		o.addProperty("can_make", n);
+		o.addProperty("total", Math.round(gain * sellable));
+		o.addProperty("sales_per_day", Math.round(rv.perDay() * 10) / 10.0);
+		if (r.req() != null) o.addProperty("requires", r.req());
+		JsonArray parts = new JsonArray();
+		for (Ing g : r.ings()) {
+			JsonObject gi = new JsonObject();
+			gi.addProperty("id", g.id());
+			gi.addProperty("n", g.n());
+			gi.addProperty("have", p.have(g.id()));
+			gi.addProperty("unit", Math.round(p.ownedValue(g.id()) * 10) / 10.0);
+			gi.addProperty("how", "yours");
 			parts.add(gi);
 		}
 		o.add("ingredients", parts);
@@ -228,6 +293,7 @@ final class Crafts {
 					published.put(HudFormatter.str(r, "item"), new double[]{sell, spd});
 			}
 		List<String> wanted = new ArrayList<>();
+		Map<String, Long> mine = Owned.all();
 		Prices p = new Prices() {
 			public DataClient.Live bazaar(String id) {
 				DataClient.Live l = data.bazaarAll().get(id);
@@ -257,10 +323,20 @@ final class Crafts {
 				if (pubRow == null) wanted.add(id);
 				return pubRow;
 			}
+
+			public long have(String id) {
+				return mine.getOrDefault(id, 0L);
+			}
 		};
 		Map<String, Cost> memo = new HashMap<>();
-		List<JsonObject> rows = new ArrayList<>();
+		List<JsonObject> rows = new ArrayList<>(), now = new ArrayList<>();
 		for (List<Recipe> rs : recipes().values()) {
+			JsonObject bestNow = null;
+			for (Recipe r : rs) {
+				JsonObject o = mine.isEmpty() ? null : evaluateOwned(r, p);
+				if (o != null && (bestNow == null || o.get("total").getAsDouble() > bestNow.get("total").getAsDouble())) bestNow = o;
+			}
+			if (bestNow != null && !Boolean.FALSE.equals(Unlocks.meets(HudFormatter.str(bestNow, "requires")))) now.add(bestNow);
 			JsonObject best = null;
 			for (Recipe r : rs) {
 				JsonObject o = evaluate(r, p, memo, budget);
@@ -286,6 +362,13 @@ final class Crafts {
 			arr.add(r);
 		}
 		res.add("flips", arr);
+		now.sort((a, b) -> Double.compare(b.get("total").getAsDouble(), a.get("total").getAsDouble()));
+		JsonArray na = new JsonArray();
+		for (JsonObject r : now.subList(0, Math.min(60, now.size()))) {
+			r.addProperty("name", Desk.pretty(HudFormatter.str(r, "item")));
+			na.add(r);
+		}
+		res.add("now", na);
 		return res;
 	}
 }

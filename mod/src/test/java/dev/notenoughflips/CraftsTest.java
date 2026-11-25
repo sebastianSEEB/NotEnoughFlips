@@ -136,4 +136,62 @@ class CraftsTest {
 		assertEquals("Ender Pearl VIII", aote.req());
 		assertEquals(2, aote.ings().size());
 	}
+
+	/** Fake market that also knows what you have. */
+	private static Crafts.Prices withStuff(Map<String, DataClient.Live> bz, Map<String, Long> have) {
+		return new Crafts.Prices() {
+			public DataClient.Live bazaar(String id) { return bz.get(id); }
+			public double npc(String id) { return 0; }
+			public double lowestBin(String id) { return 0; }
+			public double[] auction(String id) { return null; }
+			public long have(String id) { return have.getOrDefault(id, 0L); }
+		};
+	}
+
+	@Test
+	void howManyYouCanMakeFromYourStuff() {
+		Crafts.Recipe r = new Crafts.Recipe("ENCHANTED_DIAMOND", 1, List.of(new Crafts.Ing("DIAMOND", 160)), null, false);
+		assertEquals(3, Crafts.canMake(r, withStuff(Map.of(), Map.of("DIAMOND", 500L))));
+		assertEquals(0, Crafts.canMake(r, withStuff(Map.of(), Map.of("DIAMOND", 159L))));
+		Crafts.Recipe two = new Crafts.Recipe("X", 2, List.of(new Crafts.Ing("A", 2), new Crafts.Ing("B", 1)), null, false);
+		assertEquals(6, Crafts.canMake(two, withStuff(Map.of(), Map.of("A", 7L, "B", 10L))), "3 crafts × 2 made each");
+	}
+
+	@Test
+	void craftingYourStuffOnlyWhenItBeatsSellingTheMaterials() {
+		Map<String, DataClient.Live> m = new HashMap<>();
+		m.put("DIAMOND", bz(10, 9.0, 5_000_000));                   // you'd insta-sell yours at 9 (−tax)
+		m.put("ENCHANTED_DIAMOND", bz(2_000, 1_900, 70_000));
+		Crafts.Recipe r = new Crafts.Recipe("ENCHANTED_DIAMOND", 1, List.of(new Crafts.Ing("DIAMOND", 160)), null, false);
+		JsonObject o = Crafts.evaluateOwned(r, withStuff(m, Map.of("DIAMOND", 480L)));
+		assertEquals(3, o.get("can_make").getAsLong());
+		double mats = 160 * 9.0 * (1 - Crafts.BZ_TAX), net = (2_000 - 0.1) * (1 - Crafts.BZ_TAX);
+		assertEquals(Math.round(net - mats), o.get("gain").getAsLong());
+		assertEquals(Math.round((net - mats) * 3), o.get("total").getAsLong());
+		m.put("ENCHANTED_DIAMOND", bz(1_400, 1_350, 70_000));        // now the materials are worth more as they are
+		assertNull(Crafts.evaluateOwned(r, withStuff(m, Map.of("DIAMOND", 480L))), "selling the diamonds pays more");
+		assertNull(Crafts.evaluateOwned(r, withStuff(m, Map.of())), "you have none");
+	}
+
+	@Test
+	void sacksFromTheProfile() {
+		Owned.reset();
+		Owned.fromProfile(JsonParser.parseString("""
+				{"inventory":{"sacks_counts":{"DIAMOND":1200,"ENCHANTED_DIAMOND":3,"COAL":0}}}""").getAsJsonObject());
+		assertTrue(Owned.sacksKnown());
+		assertEquals(1200, Owned.have("DIAMOND"));
+		assertEquals(0, Owned.have("COAL"));
+		assertTrue(!Owned.storageKnown(), "no ender chest in the profile: Inventory API is off");
+		Owned.reset();
+	}
+
+	@Test
+	void inventoryBlobsAreCounted() throws Exception {
+		// an ender chest / backpack blob: 64 + 10 Diamond, 3 Enchanted Coal, one empty slot
+		Map<String, Long> m = new HashMap<>();
+		AhScanner.countItems("H4sIAMIxBmsC/+NiYOBkYMzkYmBgYGFkYHXOL80rceBiYC5JTOdi4HetKClKdCwpKcpMKi1JLeZgYMpMYWB38XT09fdzAWphgGnhIloLTAczfh18rn7OHo5+Ia4u8c7+jj4guwA7w4D4qwAAAA==", m);
+		assertEquals(74, m.get("DIAMOND"));
+		assertEquals(3, m.get("ENCHANTED_COAL"));
+		assertEquals(2, m.size());
+	}
 }

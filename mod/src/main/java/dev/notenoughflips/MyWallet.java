@@ -34,6 +34,7 @@ final class MyWallet {
 	/** Account switched: forget the other account's bank. */
 	static void reset() {
 		Unlocks.reset();
+		Owned.reset();
 		last = null;
 		askedAt = 0;
 		error = null;
@@ -65,7 +66,11 @@ final class MyWallet {
 			if (r.statusCode() != 200) { error = "Hypixel API: HTTP " + r.statusCode(); return; }
 			try {
 				JsonObject root = JsonParser.parseString(r.body()).getAsJsonObject();
-				if (uuid.equals(currentUuid())) Unlocks.fromProfile(member(root, uuid));   // which recipes you have (craft flips)
+				if (uuid.equals(currentUuid())) {
+					JsonObject me = member(root, uuid);
+					Unlocks.fromProfile(me);                                     // which recipes you have (craft flips)
+					Owned.fromProfile(me);                                       // and your sacks / storage
+				}
 				JsonObject w = parse(root, uuid);
 				if (w != null && !w.has("error") && uuid.equals(currentUuid())) {
 					w.addProperty("at", System.currentTimeMillis());

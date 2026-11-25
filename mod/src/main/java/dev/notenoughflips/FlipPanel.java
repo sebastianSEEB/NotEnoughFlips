@@ -489,7 +489,14 @@ final class FlipPanel {
 		chip(p, ox, y, "mine", cfg.craftMineOnly, () -> { cfg.craftMineOnly = true; cfg.save(); });
 		ox += chipW("mine") + 2;
 		chip(p, ox, y, "all", !cfg.craftMineOnly, () -> { cfg.craftMineOnly = false; cfg.save(); });
+		ox += chipW("all") + 8;
+		// what to show: the best crafts to buy and flip, or what you can craft from what you already have
+		ox = optLabel(p, ox, y, "Show");
+		chip(p, ox, y, "best", !craftFromMine, () -> craftFromMine = false);
+		ox += chipW("best") + 2;
+		chip(p, ox, y, "my stuff", craftFromMine, () -> craftFromMine = true);
 		y += 13;
+		if (craftFromMine) return craftNow(p, x, y, w, bottom, live);
 		if (cfg.craftMineOnly && !Unlocks.known()) {
 			p.text(FcfPanel.fit(cfg.hypixelApiKey == null || cfg.hypixelApiKey.isBlank()
 					? "/nef apikey <key> so it knows your recipes" : "reading your recipes…", w - 2 * PAD), x + PAD, y, WARN);
@@ -529,7 +536,8 @@ final class FlipPanel {
 			boolean locked = "no".equals(un);
 			String detail = HudFormatter.fmt(FcfPanel.d(r, "cost")) + " → " + HudFormatter.fmt(FcfPanel.d(r, "sell"))
 					+ " " + where + " · +" + HudFormatter.fmt(FcfPanel.d(r, "profit")) + " ea"
-					+ (locked ? " · 🔒 needs " + req : "maybe".equals(un) && req != null ? " · needs " + req + "?" : "");
+					+ (locked ? " · 🔒 needs " + req : "maybe".equals(un) && req != null ? " · needs " + req + "?" : "")
+					+ (FcfPanel.d(r, "can_make") >= 1 ? " · you can make " + (long) FcfPanel.d(r, "can_make") + " now" : "");
 			boolean sel = item != null && item.equals(craftSel);
 			row(p, x, y, w, (sel ? "▾ " : "▸ ") + (locked ? "🔒 " : "") + (name == null ? item : name),
 					"+" + HudFormatter.fmt(FcfPanel.d(r, "profit_per_day")) + "/d", locked ? MUTED : GOOD, detail, () -> {
@@ -543,7 +551,8 @@ final class FlipPanel {
 					JsonObject g = ge.getAsJsonObject();
 					String gid = FcfPanel.str(g, "id"), how = FcfPanel.str(g, "how"), gname = Desk.pretty(gid);
 					boolean link = how == null || how.startsWith("bazaar") || how.startsWith("lowest BIN");
-					String t = (long) FcfPanel.d(g, "n") + "× " + gname;
+					long need = (long) FcfPanel.d(g, "n"), have = (long) FcfPanel.d(g, "have");
+					String t = need + "× " + gname + (have > 0 ? have >= need ? " (have " + have + ")" : " (have " + have + ", buy " + (need - have) + ")" : "");
 					String r2 = HudFormatter.fmt(FcfPanel.d(g, "unit")) + (how == null ? "" : how.startsWith("bazaar") ? " BZ" : how.startsWith("lowest") ? " AH" : " " + how);
 					p.text(FcfPanel.fit((link ? "→ " : "   ") + t, w - width(r2) - 16), x + 8, y, link ? McStyle.BLUE : TEXT);
 					p.text(r2, x + w - width(r2) - PAD, y, MUTED);
@@ -565,6 +574,64 @@ final class FlipPanel {
 	}
 
 	private static String craftSel;
+	private static boolean craftFromMine;
+
+	/** "my stuff": crafts you can make from what you already have, worth more than the materials sold as they are. */
+	private static int craftNow(Highlight.Painter p, int x, int y, int w, int bottom, JsonObject live) {
+		String knows = "inventory" + (Owned.sacksKnown() ? " + sacks" : "") + (Owned.storageKnown() ? " + storage" : "");
+		p.text(FcfPanel.fit("Counting your " + knows, w - 2 * PAD), x + PAD, y, MUTED);
+		y += 10;
+		if (cfg.hypixelApiKey == null || cfg.hypixelApiKey.isBlank()) {
+			p.text(FcfPanel.fit("/nef apikey <key> to count your sacks and storage too", w - 2 * PAD), x + PAD, y, WARN);
+			y += 10;
+		} else if (Owned.sacksKnown() && !Owned.storageKnown()) {
+			p.text(FcfPanel.fit("Ender chest/backpacks: turn on Inventory API in /settings", w - 2 * PAD), x + PAD, y, DIM);
+			y += 10;
+		}
+		if (live == null || !live.has("now")) {
+			p.text(live == null ? "Working it out…" : "Loading…", x + PAD, y, MUTED);
+			return y + 10;
+		}
+		JsonArray arr = live.getAsJsonArray("now");
+		if (arr.isEmpty()) {
+			p.text(FcfPanel.fit("Nothing you have crafts into something worth more", w - 2 * PAD), x + PAD, y, MUTED);
+			return y + 10;
+		}
+		for (JsonElement e : arr) {
+			if (y + R2 > bottom) break;
+			JsonObject r = e.getAsJsonObject();
+			String item = FcfPanel.str(r, "item"), name = FcfPanel.str(r, "name"), where = FcfPanel.str(r, "where");
+			long n = (long) FcfPanel.d(r, "can_make");
+			String detail = n + "× · +" + HudFormatter.fmt(FcfPanel.d(r, "gain")) + " each vs selling the materials ("
+					+ HudFormatter.fmt(FcfPanel.d(r, "mats")) + " → " + HudFormatter.fmt(FcfPanel.d(r, "sell")) + " " + where + ")"
+					+ " · sells " + HudFormatter.fmt(FcfPanel.d(r, "sales_per_day")) + "/day";
+			boolean sel = item != null && item.equals(craftSel);
+			row(p, x, y, w, (sel ? "▾ " : "▸ ") + (name == null ? item : name), "+" + HudFormatter.fmt(FcfPanel.d(r, "total")), GOOD, detail,
+					() -> craftSel = item != null && item.equals(craftSel) ? null : item);
+			y += R2;
+			if (sel && r.has("ingredients")) {
+				for (JsonElement ge : r.getAsJsonArray("ingredients")) {
+					if (y + 10 > bottom) break;
+					JsonObject g = ge.getAsJsonObject();
+					String t = (long) FcfPanel.d(g, "n") + "× " + Desk.pretty(FcfPanel.str(g, "id")) + " (have " + (long) FcfPanel.d(g, "have") + ")";
+					String r2 = "worth " + HudFormatter.fmt(FcfPanel.d(g, "unit"));
+					p.text(FcfPanel.fit("   " + t, w - width(r2) - 16), x + 8, y, TEXT);
+					p.text(r2, x + w - width(r2) - PAD, y, MUTED);
+					y += 10;
+				}
+				if (y + 10 <= bottom) {
+					String sellName = name == null ? Desk.pretty(item) : name;
+					p.text("→ sell: open " + ("AH".equals(where) ? "the AH" : "the Bazaar"), x + 8, y, McStyle.BLUE);
+					hits.add(new Hit(x, y - 1, x + w, y + 9, () -> {
+						if ("AH".equals(where)) Cmd.ahSearch(sellName); else Cmd.bazaar(sellName);
+					}));
+					y += 11;
+				}
+			}
+		}
+		p.text(FcfPanel.fit("+total = gain × what sells in a day; materials at what they'd sell for", w - 2 * PAD), x + PAD, y, DIM);
+		return y + 10;
+	}
 
 	private static void craftChat(JsonObject r) {
 		String name = FcfPanel.str(r, "name");

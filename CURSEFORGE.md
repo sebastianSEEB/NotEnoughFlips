@@ -34,7 +34,7 @@ It also looks where macros don't. Upgrade snipes catch copies priced like a plai
 
 ## Craft flips for your recipes
 
-The Craft tab works out, every minute, which crafts sell for more than their ingredients cost, using live bazaar, NPC and auction prices. With your API key it reads your collections, slayer levels and Heart of the Mountain from your profile and only shows recipes you've actually unlocked. Click a craft for the shopping list; click an ingredient to go and buy it.
+The Craft tab works out, every minute, which crafts sell for more than their ingredients cost, using live bazaar, NPC and auction prices. With your API key it reads your collections, slayer levels and Heart of the Mountain from your profile and only shows recipes you've actually unlocked. Click a craft for the shopping list; click an ingredient to go and buy it. It also counts what you already have (inventory, sacks, and with the Inventory API on, your ender chest and backpacks), shows how many of each ingredient you still need, and has a "my stuff" view: crafts you can make right now from your own materials that sell for more than the materials would.
 
 ## Spread ranking
 
