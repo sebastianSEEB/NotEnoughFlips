@@ -87,6 +87,7 @@ public final class NefClient implements ClientModInitializer {
 		Bidders.init(config);
 		MyWallet.init(config);
 		DealsPanel.init(config);
+		EventsPanel.init(config);
 		DiscordButton.init(config);
 		Undercut.init(config);
 		TradeCheck.init(config);
@@ -152,6 +153,7 @@ public final class NefClient implements ClientModInitializer {
 					if (config.setupDone) FlipFeed.tick(FlipPanel.budget());   // announce the best new AH flips
 					Bazaar.ranking(config, data, FlipPanel.budget());          // keeps the 5-minute bazaar flip snapshot fresh
 					Owned.tick();                                              // what's in your inventory (craft flips)
+					if (Minecraft.getInstance().player.tickCount % 1200 == 0) EventsPanel.tick();   // seasonal buy / sell reminders
 					Crafts.tick(config, data, FlipPanel.budget());             // craft flips from live prices, once a minute
 				} catch (RuntimeException e) {
 					System.err.println("[NEF] tick: " + e);

@@ -334,6 +334,7 @@ final class FcfPanel {
 			if (open) {
 				refresh(true);
 				DealsPanel.close();                                     // they share the left side
+				EventsPanel.close();
 			}
 			return true;
 		}

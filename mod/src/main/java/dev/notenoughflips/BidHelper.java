@@ -82,6 +82,7 @@ final class BidHelper {
 				try {
 					FcfPanel.paint(s, painter);
 					DealsPanel.paint(s, painter);
+					EventsPanel.paint(s, painter);
 					if (s instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen) Desk.paint(s, painter);
 					DiscordButton.paint(s, painter);
 					if (cfg.listPriceFill) ListPrice.paint(s, painter);   // Create BIN Auction: suggested price
@@ -99,6 +100,7 @@ final class BidHelper {
 				try {
 					if (FlipPanel.click(s, event.x(), event.y())) return false;      // handled by the FLIP panel
 					if (DealsPanel.click(s, event.x(), event.y())) return false;     // handled by the DEALS panel
+					if (EventsPanel.click(s, event.x(), event.y())) return false;    // handled by the EVENTS panel
 					if (DiscordButton.click(s, event.x(), event.y())) return false;  // opens the Discord invite (game asks first)
 				} catch (RuntimeException e) {
 					System.err.println("[NEF] FLIP click: " + e);

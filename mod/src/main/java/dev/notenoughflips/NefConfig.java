@@ -50,6 +50,8 @@ final class NefConfig {
 	boolean bzHud = false;
 	int bzHudMax = 5;                 // orders shown per side (buy | sell)
 	String bzHudSize = "medium";      // small | medium | large (width)
+	boolean eventsButton = true;      // "EVENTS" button above your inventory: upcoming SkyBlock events and seasonal buy / sell prompts
+	boolean seasonAlerts = true;      // chat line when a seasonal product's buy or sell window opens
 	boolean dealsButton = true;        // "DEALS" button above your inventory: /nef deals as a clickable list on the left
 	String bazaarSort = "hour";       // FLIP → Bazaar → Best flips order: hour (profit/h), profit, pct (margin %), volume
 	boolean discordButton = true;      // small "Discord" button at the bottom right of your inventory

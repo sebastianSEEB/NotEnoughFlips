@@ -70,7 +70,10 @@ final class DealsPanel {
 		hits.add(new Hit(b[0], b[1], b[2], b[3], () -> {
 			open = !open;
 			page = 0;
-			if (open) FcfPanel.close();
+			if (open) {
+				FcfPanel.close();
+				EventsPanel.close();
+			}
 		}));
 		if (!open) return;
 

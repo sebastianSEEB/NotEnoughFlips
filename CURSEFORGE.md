@@ -67,6 +67,12 @@ Rows open what they are about: auctions open the auction, bazaar items open the 
 
 Every Fairy Soul on the island you're on gets a marker on your screen, visible through walls, with its distance. The nearest one is labelled, and when it's behind you the label says which way to turn. Click a soul and its marker goes away. Souls you collected before installing the mod disappear the first time you click them ("already found"), or mark a whole island done with `/nef souls allfound`. Progress is kept per account and profile. The markers only show where souls are; the mod never moves or clicks for you.
 
+## Seasonal prices and the EVENTS panel
+
+Some prices follow the SkyBlock calendar: candy around the Spooky Festival, gifts around the Season of Jerry, and so on. Trade Desk → Bazaar → Seasons (or `/nef season`) lays every year of a product's price history over one SkyBlock year, with the events marked, so you can see whether the pattern repeats. The mod only calls a pattern tradeable when buying in its cheap window and selling in its dear one made money in years it wasn't picked from (at least 3% typical gain, profitable in 70% of years, and a pattern well above the noise). Random prices pass that test less than 1 time in 40.
+
+The EVENTS button above your inventory opens a panel with the events coming up and their countdowns, and what to do about the seasonal products: BUY NOW or SELL NOW when one is in its window, and when the next buy windows open. Click a row to search the Bazaar. You also get one chat line when a window opens (switch it off in Settings). Patterns need several SkyBlock years (about 5 real days each) of history, so the list grows over time. A pattern is history, not a promise: check the price before you buy.
+
 ## Bidder check
 
 In an auction, a panel shows how many coins each of the other bidders has in purse and bank. If none of them can afford to go much higher, you don't need to open with a big bid.
@@ -131,6 +137,7 @@ A free Hypixel API key (developer.hypixel.net) turns on the bidder check and add
 | `/nef session` | Profit this session and per hour |
 | `/nef alert under\|over <price> <item>` | Your own price alerts (`list`, `remove <n>`, `clear`) |
 | `/nef ending on\|off` | Alerts for regular auctions ending under value |
+| `/nef season` | Open the seasonal price charts |
 | `/nef souls` | Fairy Soul markers: `on`/`off`, `reset` (show this island's again), `allfound` |
 | `/nef minvalue <amount>` | Ignore items worth less than this (1M by default, `0` = any) |
 | `/nef bztax <percent>` | Your bazaar tax (1.25 by default, lower with the Bazaar Flipper upgrade) |
