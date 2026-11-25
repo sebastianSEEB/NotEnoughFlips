@@ -200,6 +200,8 @@ final class HudFormatter {
 					fmt(live.buy() - 0.1), GREEN, " → " + fmt((live.buy() - 0.1) * (1 - tax)) + " each after tax", GRAY));
 			return;
 		}
+		String season = Season.tooltip(str(d, "k"));                   // follows the SkyBlock year (Spooky, Jerry…)
+		if (season != null) out.add(line(" ☀ " + season, AQUA));
 		DataClient dc = NefClient.data();
 		if (dc != null && Bazaar.eventMembers(dc.bzSignals()).contains(str(d, "k"))) {
 			out.add(line(" ⚠ part of a market event right now (many related products moved together): don't flip it until it settles."

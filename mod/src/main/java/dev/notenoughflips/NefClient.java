@@ -598,6 +598,10 @@ public final class NefClient implements ClientModInitializer {
 										})))
 								.then(priceAlert("under", true))
 								.then(priceAlert("over", false)))
+						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("season").executes(ctx -> {
+									Minecraft.getInstance().execute(() -> Desk.showSeasons(null));
+									return 1;
+								}))
 						.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("ending")
 								.then(LiteralArgumentBuilder.<FabricClientCommandSource>literal("on").executes(ctx -> {
 									config.endingAlerts = true;

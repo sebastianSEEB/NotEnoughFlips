@@ -1100,10 +1100,12 @@ final class Desk {
 		int strong = strongSignals();
 		int cx = chip(p, x, y, "Prices", marketView.equals("prices"), () -> { marketView = "prices"; page = 0; });
 		cx = chip(p, cx, y, strong > 0 ? "Tips (" + strong + ")" : "Tips", marketView.equals("tips"), () -> { marketView = "tips"; page = 0; });
-		chip(p, cx, y, "Market size", marketView.equals("size"), () -> { marketView = "size"; page = 0; });
+		cx = chip(p, cx, y, "Market size", marketView.equals("size"), () -> { marketView = "size"; page = 0; });
+		chip(p, cx, y, "Seasons", marketView.equals("seasons"), () -> { marketView = "seasons"; page = 0; });
 		switch (marketView) {
 			case "tips" -> signals(p, x, y + 15, w, h - 15);
 			case "size" -> marketSize(p, x, y + 15, w, h - 15);
+			case "seasons" -> seasons(p, x, y + 15, w, h - 15);
 			default -> bazaar(p, x, y + 15, w, h - 15);
 		}
 	}
@@ -1405,6 +1407,180 @@ final class Desk {
 		String b1 = "Flip " + selName + " in Bazaar";
 		int bx = x + w - w(b1) - 10;
 		button(p, bx, y + tableH + 2, bx + w(b1) + 10, y + tableH + 15, b1, true, () -> { on = false; FlipPanel.pick(sel, selName); });
+	}
+
+	// ---------------------------------------------------------------- seasons (SkyBlock-year patterns)
+	private static String seasonSel;
+	private static boolean seasonAll;
+
+	/** Open the Desk on the seasons view (/nef season). */
+	static void showSeasons(String id) {
+		marketView = "seasons";
+		if (id != null) seasonSel = id;
+		show("market");
+	}
+
+	/**
+	 * Products whose price follows the SkyBlock year (124 real hours: Spooky Festival, Season of Jerry, New Year…).
+	 * Table: the best buy → sell window per product, with gain and win rate measured on years the pick never saw.
+	 * Chart: every SkyBlock year of the selected product laid over each other (% vs that year's median), the typical
+	 * year in bold, event markers, the buy/sell window and where we are now.
+	 */
+	private static void seasons(Highlight.Painter p, int x, int y, int w, int h) {
+		long now = System.currentTimeMillis();
+		Object[] ev = Season.nextEvent(now);
+		String today = Season.date(now);
+		today = today.substring(0, today.indexOf(','));                // "Late Spring 26"
+		p.text(FcfPanel.fit("SkyBlock: " + today + (ev != null ? " · " + ev[0] + " in " + Season.dur((long) ev[1]) : ""), w - 150),
+				x, y, INK);
+		int cx = chip(p, x + w - 140, y, "tradeable", !seasonAll, () -> { seasonAll = false; page = 0; });
+		chip(p, cx, y, "all", seasonAll, () -> { seasonAll = true; page = 0; });
+		y += 13;
+		h -= 13;
+		JsonObject sj = data == null ? null : data.seasonality();
+		if (sj == null || !sj.has("products")) {
+			p.text("Loading seasonality… (the data site builds it every hour)", x, y + 4, MUTED);
+			return;
+		}
+		List<JsonObject> list = new ArrayList<>();
+		for (JsonElement e : sj.getAsJsonArray("products")) {
+			JsonObject o = e.getAsJsonObject();
+			if (seasonAll || o.has("ok") && o.get("ok").getAsBoolean()) list.add(o);
+		}
+		if (list.isEmpty()) {
+			p.text(seasonAll ? "No product has enough history yet: it needs 6 SkyBlock years (about a month)."
+					: "No product has a pattern that held up yet. Show \"all\" to see every analysed product.", x, y + 4, MUTED);
+			return;
+		}
+		if (seasonSel == null || list.stream().noneMatch(o -> seasonSel.equals(str(o, "id")))) seasonSel = str(list.get(0), "id");
+		int tableH = Math.min((int) (h * 0.48), 40 + list.size() * 12);
+		List<Row> rows = new ArrayList<>();
+		for (JsonObject o : list) {
+			String id = str(o, "id");
+			boolean has = o.has("buy_bin");
+			int buy = has ? o.get("buy_bin").getAsInt() : 0, sell = has ? o.get("sell_bin").getAsInt() : 0;
+			String st = Season.now(o, now);
+			double gain = d(o, "gain"), win = d(o, "win");
+			rows.add(new Row(new String[]{pretty(id),
+					has ? String.format(Locale.ROOT, "%+.0f%%", gain * 100) : "-",
+					has ? Math.round(win * d(o, "trades")) + "/" + (int) d(o, "trades") : "-",
+					has ? shortDate(Season.label(buy)) : "-",
+					has ? (st != null ? st.toUpperCase(Locale.ROOT) : Season.dur(Season.until(now, buy))) : "",
+					has ? shortDate(Season.label(sell)) : "-",
+					has ? (int) d(o, "hold_h") + "h" : "-"},
+					new int[]{id.equals(seasonSel) ? ORANGE : 0, gain > 0 ? GREEN : RED, win >= 0.7 ? GREEN : MUTED, 0,
+							"buy now".equals(st) ? C_GREEN : st != null ? C_GOLD : MUTED, 0, MUTED}, null, 0, () -> seasonSel = id));
+		}
+		table(p, x, y, w, tableH, new Col[]{new Col("Product", 0.22, false), new Col("Gain", 0.10, true), new Col("Years", 0.10, true),
+				new Col("Buy around", 0.18, false), new Col("Buy in", 0.12, true), new Col("Sell around", 0.19, false), new Col("Hold", 0.09, true)},
+				rows, "Gain = median after tax, on years the window was not picked from. Years = how many of those it paid in.");
+		seasonChart(p, x, y + tableH + 4, w, h - tableH - 4, seasonSel, Season.of(seasonSel), now);
+	}
+
+	/** "Late Spring 20" → "L.Spring 20" for narrow columns. */
+	private static String shortDate(String d) {
+		return d.replace("Early ", "E.").replace("Late ", "L.");
+	}
+
+	private static final int[] YEAR_COLORS = {0x553987E5, 0x5555FFFF, 0x55FFAA00, 0x5555FF55, 0x55FF55FF, 0x55FFFFFF};
+
+	private static void seasonChart(Highlight.Painter p, int x, int y, int w, int h, String id, JsonObject o, long now) {
+		if (h < 50 || id == null) return;
+		JsonObject det = data.seasonDetail(id);
+		String head = pretty(id) + ": every SkyBlock year on top of each other (% vs that year's median)";
+		p.text(FcfPanel.fit(head, w - 120), x, y, INK);
+		p.fill(x + w - 110, y + 3, x + w - 96, y + 4, 0x883987E5);
+		p.text("years", x + w - 92, y, MUTED);
+		p.fill(x + w - 58, y + 2, x + w - 44, y + 5, C_WHITE);
+		p.text("typical", x + w - 40, y, MUTED);
+		int gx = x + 34, gy = y + 14, gw = w - 38, gh = h - 40;
+		// every year as % vs its own median
+		List<List<long[]>> years = new ArrayList<>();
+		long lo = -500, hi = 500;                                     // ×100 %, at least ±5 %
+		JsonObject ys = det == null ? null : HudFormatter.obj(det, "years");
+		if (ys != null) {
+			for (Map.Entry<String, JsonElement> e : ys.entrySet()) {
+				JsonArray a = e.getValue().getAsJsonArray();
+				List<Double> vals = new ArrayList<>();
+				for (JsonElement v : a) if (!v.isJsonNull()) vals.add(v.getAsDouble());
+				if (vals.size() < 10) continue;
+				List<Double> sorted = new ArrayList<>(vals);
+				sorted.sort(null);
+				double med = sorted.get(sorted.size() / 2);
+				List<long[]> pts = new ArrayList<>();
+				for (int b = 0; b < a.size(); b++) {
+					if (a.get(b).isJsonNull()) continue;
+					long pct = Math.round((a.get(b).getAsDouble() / med - 1) * 10_000);
+					pct = Math.max(-9_000, Math.min(30_000, pct));
+					pts.add(new long[]{b, pct});
+				}
+				years.add(pts);
+			}
+		}
+		List<long[]> typical = new ArrayList<>();
+		JsonArray curve = o == null ? null : o.getAsJsonArray("curve");
+		if (curve != null) for (int b = 0; b < curve.size(); b++) typical.add(new long[]{b, Math.round(curve.get(b).getAsDouble() * 10_000)});
+		for (List<long[]> l : years) for (long[] q : l) { lo = Math.min(lo, q[1]); hi = Math.max(hi, q[1]); }
+		for (long[] q : typical) { lo = Math.min(lo, q[1]); hi = Math.max(hi, q[1]); }
+		long pad = Math.max(100, (hi - lo) / 12);
+		lo -= pad;
+		hi += pad;
+		// month ticks, event bands, buy / sell window, now
+		for (int m = 0; m < 12; m++) {
+			int mx = gx + (int) ((double) m * 31 * 1200 / Season.SLOT_S * gw / (Season.BINS - 1));
+			p.fill(mx, gy, mx + 1, gy + gh, LINE);
+			if (m % 3 == 0) p.text(Season.MONTHS[m].replace("Early ", "E."), mx + 2, gy + gh + 3, MUTED);
+		}
+		// event bands; each event's name once, in the first free of 3 rows (no overlapping labels)
+		int[] rowEnd = {Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
+		java.util.Set<String> named = new java.util.HashSet<>();
+		for (int b = 0; b < Season.BINS; b++) {
+			String e = Season.events(b);
+			if (e.isEmpty()) continue;
+			int ex = gx + b * gw / (Season.BINS - 1);
+			p.fill(ex - 2, gy, ex + 3, gy + gh, 0x30FF55FF);
+			for (String name : e.split(", ")) {
+				if (!named.add(name + "@" + (b > 0 && Season.events(b - 1).contains(name) ? "cont" : b))) continue;
+				if (b > 0 && Season.events(b - 1).contains(name)) continue;          // same event, next slot
+				int tw = w(name), tx = Math.min(ex + 4, gx + gw - tw);
+				for (int r = 0; r < 3; r++) {
+					if (tx > rowEnd[r] + 4) {
+						p.text(name, tx, gy + 2 + r * 9, 0xFFFF77FF);
+						rowEnd[r] = tx + tw;
+						break;
+					}
+				}
+			}
+		}
+		if (o != null && o.has("buy_bin")) {
+			int bx = gx + o.get("buy_bin").getAsInt() * gw / (Season.BINS - 1), sx = gx + o.get("sell_bin").getAsInt() * gw / (Season.BINS - 1);
+			p.fill(bx - 1, gy, bx + 2, gy + gh, 0x8855FF55);
+			p.text("buy", bx - w("buy") / 2, gy + gh - 9, C_GREEN);
+			p.fill(sx - 1, gy, sx + 2, gy + gh, 0x88FF5555);
+			p.text("sell", sx - w("sell") / 2, gy + gh - 9, C_RED);
+		}
+		int nx = gx + Season.bin(now) * gw / (Season.BINS - 1);
+		p.fill(nx, gy - 2, nx + 1, gy + gh + 2, C_YELLOW);
+		p.text("now", nx - w("now") / 2, gy - 10 + 1, C_YELLOW);
+		int zy = gy + gh - (int) ((double) -lo / (hi - lo) * gh);          // the year's median
+		p.fill(gx, zy, gx + gw, zy + 1, 0x60FFFFFF);
+		p.text("0%", gx - 3 - w("0%"), zy - 4, MUTED);
+		for (int k = 0; k <= 4; k++) {
+			long v = lo + (hi - lo) * k / 4;
+			int yy = gy + gh - (int) ((double) (v - lo) / (hi - lo) * gh);
+			if (Math.abs(yy - zy) < 9) continue;
+			p.fill(gx, yy, gx + gw, yy + 1, 0x18FFFFFF);
+			String t = String.format(Locale.ROOT, "%+.0f%%", v / 100.0);
+			p.text(t, gx - 3 - w(t), yy - 4, MUTED);
+		}
+		if (years.isEmpty() && det == null) p.text("Loading every year's prices…", gx + 6, gy + gh / 2, MUTED);
+		int i = 0;
+		for (List<long[]> l : years) FcfPanel.line(p, l, 0, Season.BINS - 1, lo, hi, gx, gy, gw, gh, YEAR_COLORS[i++ % YEAR_COLORS.length]);
+		FcfPanel.line(p, typical, 0, Season.BINS - 1, lo, hi, gx, gy, gw, gh, C_WHITE);
+		String foot = years.size() + " SkyBlock years" + (o != null && o.has("snr") ? String.format(Locale.ROOT, " · pattern vs noise %.1f×", d(o, "snr")) : "")
+				+ (o != null && o.has("spread") ? String.format(Locale.ROOT, " · typical spread %.1f%%", d(o, "spread") * 100) : "")
+				+ (o != null && o.has("ok") && !o.get("ok").getAsBoolean() ? " · not a reliable pattern" : "");
+		p.text(FcfPanel.fit(foot, w), x, y + h - 10, MUTED);
 	}
 
 	static String pretty(String k) {

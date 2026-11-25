@@ -471,6 +471,35 @@ final class DataClient {
 	private volatile long craftAt;
 
 	/** Craft flips published every 3 h by the GitHub job (tools/craft_flips.py). Null until loaded. */
+	private volatile JsonObject season;
+	private volatile long seasonAt;
+	private final Map<String, JsonObject> seasonDetail = new ConcurrentHashMap<>();
+	private final Map<String, Long> seasonDetailAt = new ConcurrentHashMap<>();
+
+	/** Published seasonality of every analysed bazaar product (data/seasonality.json), refreshed every 30 min. */
+	JsonObject seasonality() {
+		long now = System.currentTimeMillis();
+		if (now - seasonAt > 1_800_000L && cfg.dataUrl != null && !cfg.dataUrl.isBlank()) {
+			seasonAt = now;
+			getJson(cfg.dataUrl + "/seasonality.json", 30).whenComplete((j, e) -> {
+				if (j != null) season = j;
+			});
+		}
+		return season;
+	}
+
+	/** Every SkyBlock year's prices of one product, slot by slot (data/season/<ID>.json); null until loaded. */
+	JsonObject seasonDetail(String id) {
+		long now = System.currentTimeMillis();
+		if (id != null && now - seasonDetailAt.getOrDefault(id, 0L) > 1_800_000L && cfg.dataUrl != null && !cfg.dataUrl.isBlank()) {
+			seasonDetailAt.put(id, now);
+			getJson(cfg.dataUrl + "/season/" + id + ".json", 20).whenComplete((j, e) -> {
+				if (j != null) seasonDetail.put(id, j);
+			});
+		}
+		return id == null ? null : seasonDetail.get(id);
+	}
+
 	JsonObject craftFlips() {
 		long now = System.currentTimeMillis();
 		if (now - craftAt > 600_000L && cfg.dataUrl != null && !cfg.dataUrl.isBlank()) {
