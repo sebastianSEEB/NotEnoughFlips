@@ -83,6 +83,19 @@ def test_too_little_history():
     assert S.analyse(rows) is None
 
 
+def test_backfill_stops_at_its_deadline():
+    store = {"items": {}, "vol": {"CANDY": 1e6}, "done": {}}
+    calls = []
+    real = S.cofl_week
+    S.cofl_week = lambda pid, end: calls.append(pid) or []
+    try:
+        assert S.backfill(store, 1.8e9, 100, minutes=0) == 0      # out of time: no requests, nothing lost
+        assert S.backfill(store, 1.8e9, 3, pause=0, minutes=1) == 3
+    finally:
+        S.cofl_week = real
+    assert len(calls) == 3
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

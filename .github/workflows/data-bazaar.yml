@@ -35,5 +35,5 @@ jobs:
       - run: tools/pages.sh clone site
       - run: set -o pipefail; python tools/bz_history.py site 2000 | tee -a $GITHUB_STEP_SUMMARY
       - run: python tests/test_seasonality.py
-      - run: set -o pipefail; python tools/seasonality.py site ${{ inputs.backfill || '600' }} | tee -a $GITHUB_STEP_SUMMARY
+      - run: set -o pipefail; python -u tools/seasonality.py site ${{ inputs.backfill || '600' }} 30 | tee -a $GITHUB_STEP_SUMMARY
       - run: tools/pages.sh push site

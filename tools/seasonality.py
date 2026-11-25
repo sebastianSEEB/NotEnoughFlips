@@ -186,10 +186,13 @@ def cofl_week(pid: str, end_s: int, timeout: float = 20) -> list | None:
     return rows
 
 
-def backfill(store: dict, now_s: float, budget: int, weeks: int = 26, top: int = 300, pause: float = 0.75) -> int:
-    """Fetch missing weeks (most traded products first, newest weeks first) until budget requests are used."""
+def backfill(store: dict, now_s: float, budget: int, weeks: int = 26, top: int = 300, pause: float = 0.75,
+             minutes: float = 30) -> int:
+    """Fetch missing weeks (most traded products first, newest weeks first) until budget requests are used or
+    `minutes` of wall time pass, so the run always gets to save what it fetched before the job's time limit."""
     if budget <= 0:
         return 0
+    stop = time.monotonic() + minutes * 60
     products = [p for p in SEASONAL if p in store["vol"]]
     products += [p for p in sorted(store["vol"], key=lambda p: -store["vol"][p]) if p not in products][:top]
     week = 7 * 86400
@@ -204,7 +207,7 @@ def backfill(store: dict, now_s: float, budget: int, weeks: int = 26, top: int =
             key = f"{pid}@{end}" if end <= now_s else f"{pid}@{end}@{day}"
             if key in store["done"]:
                 continue
-            if used >= budget:
+            if used >= budget or time.monotonic() >= stop:
                 return used
             try:
                 rows = cofl_week(pid, end)
@@ -212,6 +215,8 @@ def backfill(store: dict, now_s: float, budget: int, weeks: int = 26, top: int =
                 time.sleep(60)                         # rate limited: back off and stop for this run
                 return used
             used += 1
+            if used % 250 == 0:
+                print(f"seasonality: backfill {used} requests so far", flush=True)
             if rows is not None:
                 merge(store, pid, rows)
                 store["done"][key] = 1
@@ -305,7 +310,7 @@ def summary(pid: str, a: dict, vol: int) -> dict:
     return out
 
 
-def main(site_dir: str, budget: str = "600") -> None:
+def main(site_dir: str, budget: str = "600", minutes: str = "30") -> None:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from market.hypixel import HypixelClient  # noqa: E402
 
@@ -316,7 +321,7 @@ def main(site_dir: str, budget: str = "600") -> None:
     now = time.time()
     store = load_store(path)
     added = add_snapshot(store, HypixelClient("https://api.hypixel.net/v2", "NotEnoughFlips data").bazaar(), now)
-    used = backfill(store, now, int(budget))
+    used = backfill(store, now, int(budget), minutes=float(minutes))
     trim(store, now)
     with gzip.open(path, "wt", encoding="utf-8") as f:
         json.dump(store, f, separators=(",", ":"))
