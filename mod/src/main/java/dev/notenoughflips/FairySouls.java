@@ -417,7 +417,7 @@ final class FairySouls {
 
 	/** Bottom-right corner, just under your inventory. */
 	static void paintCorner(Screen s, Highlight.Painter p) {
-		if (cfg == null || !cfg.fairySoulCorner || !(s instanceof InventoryScreen)) return;
+		if (cfg == null || !cfg.fairySoulCorner || !(s instanceof InventoryScreen) || GuiPos.itemTooltip(s)) return;
 		String isl = island;
 		boolean here = isl != null && souls.containsKey(isl);
 		List<String> lines = cornerLines(profileFound, grandTotal(), profileUnspent,

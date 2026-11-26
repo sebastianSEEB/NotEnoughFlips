@@ -37,6 +37,23 @@ final class GuiPos {
 		return null;
 	}
 
+	/**
+	 * True while the mouse is over a slot that holds an item, i.e. the game is showing that item's tooltip. Newer game
+	 * versions draw the tooltip before NEF's overlays, so small extras near the inventory (Discord button, soul count)
+	 * step aside while it's up instead of covering it.
+	 */
+	static boolean itemTooltip(Screen s) {
+		if (!(s instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> acs) || acs.getMenu() == null) return false;
+		int[] b = box(s);
+		int mx = mouseX, my = mouseY;
+		for (net.minecraft.world.inventory.Slot sl : acs.getMenu().slots) {
+			int x = b[0] + sl.x, y = b[1] + sl.y;
+			if (mx >= x - 1 && mx < x + 17 && my >= y - 1 && my < y + 17)
+				return sl.getItem() != null && !sl.getItem().isEmpty();
+		}
+		return false;
+	}
+
 	static int[] box(Screen s) {
 		if (!tried) {
 			tried = true;

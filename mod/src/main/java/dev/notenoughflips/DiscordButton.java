@@ -32,7 +32,7 @@ final class DiscordButton {
 
 	static void paint(Screen s, Highlight.Painter p) {
 		int[] r = rect(s);
-		if (r == null) return;
+		if (r == null || GuiPos.itemTooltip(s)) return;                      // never on top of an item's tooltip
 		p.fill(r[0], r[1], r[2], r[3], BLURPLE);
 		p.fill(r[0], r[3] - 1, r[2], r[3], 0xFF3C45A5);
 		p.text("Discord", r[0] + 5, r[1] + 2, 0xFFFFFFFF);
