@@ -69,7 +69,8 @@ final class MyWallet {
 				if (uuid.equals(currentUuid())) {
 					JsonObject me = member(root, uuid);
 					Unlocks.fromProfile(me);                                     // which recipes you have (craft flips)
-					Owned.fromProfile(me);                                       // and your sacks / storage
+					Owned.fromProfile(me);
+					FairySouls.fromProfile(me);                                  // souls collected, for the inventory corner                                       // and your sacks / storage
 				}
 				JsonObject w = parse(root, uuid);
 				if (w != null && !w.has("error") && uuid.equals(currentUuid())) {

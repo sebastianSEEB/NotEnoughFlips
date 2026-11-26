@@ -69,4 +69,13 @@ class FairySoulsTest {
 				assertTrue(m.containsKey(k) && !m.get(k).isEmpty(), k);
 		}
 	}
+
+	@Test
+	void cornerCount() {
+		assertEquals(java.util.List.of("✦ Fairy Souls 212/271", "Hub: 77 markers left", "2 to exchange at Tia"),
+				FairySouls.cornerLines(212, 271, 11, "Hub", 3, 80));
+		assertEquals(java.util.List.of("Hub: all found ✔"), FairySouls.cornerLines(-1, 271, -1, "Hub", 80, 80),
+				"no API key: only what the markers know");
+		assertEquals(0, FairySouls.cornerLines(-1, 271, 4, null, 0, 0).size(), "nothing known, nothing drawn");
+	}
 }

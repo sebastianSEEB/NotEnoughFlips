@@ -83,6 +83,7 @@ final class BidHelper {
 					FcfPanel.paint(s, painter);
 					DealsPanel.paint(s, painter);
 					EventsPanel.paint(s, painter);
+					FairySouls.paintCorner(s, painter);
 					if (s instanceof net.minecraft.client.gui.screens.inventory.InventoryScreen) Desk.paint(s, painter);
 					DiscordButton.paint(s, painter);
 					if (cfg.listPriceFill) ListPrice.paint(s, painter);   // Create BIN Auction: suggested price

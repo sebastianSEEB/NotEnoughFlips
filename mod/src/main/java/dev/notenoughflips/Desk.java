@@ -405,6 +405,7 @@ final class Desk {
 				ly = setting(p, x, ly, lw, "Tooltips", new String[]{"Simple", "Pro"}, cfg.simpleMode ? 0 : 1, i -> cfg.simpleMode = i == 0);
 				ly = onOff(p, x, ly, lw, "Alert sound", cfg.alertSound, v -> cfg.alertSound = v);
 				ly = onOff(p, x, ly, lw, "Fairy Soul markers", cfg.fairySouls, v -> cfg.fairySouls = v);
+				ly = onOff(p, x, ly, lw, "Fairy Soul count in inventory", cfg.fairySoulCorner, v -> cfg.fairySoulCorner = v);
 				ly = onOff(p, x, ly, lw, "EVENTS button", cfg.eventsButton, v -> cfg.eventsButton = v);
 				ly = onOff(p, x, ly, lw, "Seasonal buy/sell alerts", cfg.seasonAlerts, v -> cfg.seasonAlerts = v);
 				p.text(FcfPanel.fit("Your own API key (adds your bank to your coins): /nef apikey <key>", w), x, ly + 2, MUTED);

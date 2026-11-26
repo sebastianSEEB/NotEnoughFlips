@@ -21,7 +21,7 @@ final class DiscordButton {
 	}
 
 	/** {x1, y1, x2, y2} under the inventory's bottom-right corner (beside it when there's no room below), or null. */
-	private static int[] rect(Screen s) {
+	static int[] rect(Screen s) {
 		if (cfg == null || !cfg.discordButton || !(s instanceof InventoryScreen)) return null;
 		int[] box = GuiPos.box(s);
 		int w = Minecraft.getInstance().font.width("Discord") + 10;

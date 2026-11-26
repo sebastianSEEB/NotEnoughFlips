@@ -19,6 +19,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
 
 /**
@@ -372,6 +374,67 @@ final class FairySouls {
 		if (pe == null) return e;
 		double t = Math.max(0, Math.min(1, (System.currentTimeMillis() - tickAt) / 50.0));
 		return new double[]{pe[0] + (e[0] - pe[0]) * t, pe[1] + (e[1] - pe[1]) * t, pe[2] + (e[2] - pe[2]) * t};
+	}
+
+	// ---- count in the inventory corner ----
+
+	private static volatile int profileFound = -1, profileUnspent = -1;   // from your SkyBlock profile (API key)
+
+	private static final Map<String, String> NAMES = Map.ofEntries(
+			Map.entry("hub", "Hub"), Map.entry("combat_1", "Spider's Den"), Map.entry("combat_3", "The End"),
+			Map.entry("crimson_isle", "Crimson Isle"), Map.entry("foraging_1", "The Park"), Map.entry("foraging_2", "Galatea"),
+			Map.entry("foraging_3", "Foraging"), Map.entry("farming_1", "Farming Islands"), Map.entry("mining_1", "Gold Mine"),
+			Map.entry("mining_2", "Deep Caverns"), Map.entry("mining_3", "Dwarven Mines"), Map.entry("winter", "Jerry's Workshop"),
+			Map.entry("dungeon_hub", "Dungeon Hub"), Map.entry("fishing_1", "Backwater Bayou"), Map.entry("lotus_atoll", "Lotus Atoll"),
+			Map.entry("safari", "Safari"));
+
+	/** Your member entry of the selected profile: souls collected and not yet exchanged at Tia. */
+	static void fromProfile(JsonObject member) {
+		if (member == null) return;
+		JsonObject fs = HudFormatter.obj(member, "fairy_soul");
+		Double got = fs != null ? HudFormatter.num(fs, "total_collected") : HudFormatter.num(member, "fairy_souls_collected");
+		Double unspent = fs != null ? HudFormatter.num(fs, "unspent_souls") : HudFormatter.num(member, "fairy_souls");
+		if (got != null) profileFound = got.intValue();
+		if (unspent != null) profileUnspent = unspent.intValue();
+	}
+
+	/** Every soul in the game, from the shipped list. */
+	static int grandTotal() {
+		int n = 0;
+		for (List<int[]> l : souls.values()) n += l.size();
+		return n;
+	}
+
+	/** Pure: the lines for the corner, top first. Empty when nothing is known. */
+	static List<String> cornerLines(int found, int all, int unspent, String islandName, int islandFound, int islandAll) {
+		List<String> out = new ArrayList<>();
+		if (found >= 0 && all > 0) out.add("✦ Fairy Souls " + Math.min(found, all) + "/" + all);
+		if (islandName != null && islandAll > 0)                             // what the markers know, not your profile
+			out.add(islandName + ": " + (islandFound >= islandAll ? "all found ✔" : (islandAll - islandFound) + " markers left"));
+		if (unspent >= 5) out.add((unspent / 5) + " to exchange at Tia");
+		return out;
+	}
+
+	/** Bottom-right corner, just under your inventory. */
+	static void paintCorner(Screen s, Highlight.Painter p) {
+		if (cfg == null || !cfg.fairySoulCorner || !(s instanceof InventoryScreen)) return;
+		String isl = island;
+		boolean here = isl != null && souls.containsKey(isl);
+		List<String> lines = cornerLines(profileFound, grandTotal(), profileUnspent,
+				here ? NAMES.getOrDefault(isl, isl) : null, here ? total(isl) - left(isl).size() : 0, here ? total(isl) : 0);
+		if (lines.isEmpty()) return;
+		int[] box = GuiPos.box(s);
+		var font = Minecraft.getInstance().font;
+		int right = box[0] + box[2], y = box[1] + box[3] + 3;               // box is left, top, width, height
+		int[] discord = DiscordButton.rect(s);
+		if (discord != null && discord[1] > box[1] + box[3]) right = discord[0] - 5;   // left of the Discord button
+		for (int i = 0; i < lines.size(); i++) {
+			String t = lines.get(i);
+			int x = right - font.width(t);
+			if (y + 9 > s.height) break;
+			p.text(t, x, y, i == 0 ? 0xFFFF77FF : McStyle.MUTED);
+			y += 10;
+		}
 	}
 
 	// ---- commands ----

@@ -67,6 +67,8 @@ Rows open what they are about: auctions open the auction, bazaar items open the 
 
 Every Fairy Soul on the island you're on gets a marker on your screen, visible through walls, with its distance. The nearest one is labelled, and when it's behind you the label says which way to turn. Click a soul and its marker goes away. Souls you collected before installing the mod disappear the first time you click them ("already found"), or mark a whole island done with `/nef souls allfound`. Progress is kept per account and profile. The markers only show where souls are; the mod never moves or clicks for you.
 
+Your inventory also shows your Fairy Soul count in its bottom-right corner: souls found out of all 271 (from your profile, needs the API key), markers left on this island, and exchanges waiting at Tia.
+
 ## Seasonal prices and the EVENTS panel
 
 Some prices follow the SkyBlock calendar: candy around the Spooky Festival, gifts around the Season of Jerry, and so on. Trade Desk → Bazaar → Seasons (or `/nef season`) lays every year of a product's price history over one SkyBlock year, with the events marked, so you can see whether the pattern repeats. The mod only calls a pattern tradeable when buying in its cheap window and selling in its dear one made money in years it wasn't picked from (at least 3% typical gain, profitable in 70% of years, and a pattern well above the noise). Random prices pass that test less than 1 time in 40.
