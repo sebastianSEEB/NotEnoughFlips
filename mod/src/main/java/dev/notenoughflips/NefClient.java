@@ -88,6 +88,8 @@ public final class NefClient implements ClientModInitializer {
 		MyWallet.init(config);
 		DealsPanel.init(config);
 		EventsPanel.init(config);
+		DungeonLoot.init(config);
+		DungeonMap.init(config);
 		DiscordButton.init(config);
 		Undercut.init(config);
 		TradeCheck.init(config);

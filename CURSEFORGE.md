@@ -75,6 +75,10 @@ Some prices follow the SkyBlock calendar: candy around the Spooky Festival, gift
 
 The EVENTS button above your inventory opens a panel with the events coming up and their countdowns, and what to do about the seasonal products: BUY NOW or SELL NOW when one is in its window, and when the next buy windows open. Click a row to search the Bazaar. You also get one chat line when a window opens (switch it off in Settings). Patterns need several SkyBlock years (about 5 real days each) of history, so the list grows over time. A pattern is history, not a promise: check the price before you buy.
 
+## Dungeons
+
+In a run's chest menu every reward chest is valued against what it costs to open: the best one is outlined in gold, and the runner-up in aqua when it's still worth it after a Dungeon Chest Key. Inside a chest, the title row shows what it's worth minus its cost. The dungeon map from your hotbar is also drawn as a minimap in the top-left corner, showing only what that map shows.
+
 ## Bidder check
 
 In an auction, a panel shows how many coins each of the other bidders has in purse and bank. If none of them can afford to go much higher, you don't need to open with a big bid.

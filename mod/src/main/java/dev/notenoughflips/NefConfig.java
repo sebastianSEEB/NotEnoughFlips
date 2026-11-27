@@ -66,7 +66,10 @@ final class NefConfig {
 	boolean npcFlips = true;          // items listed / sold for less than an NPC pays: DEALS list + chat alert
 	double npcFlipMinProfit = 50_000; // smallest NPC flip worth telling you about (coins)
 	boolean fairySouls = true;
-	boolean fairySoulCorner = true;   // Fairy Soul count in the bottom-right corner of your inventory        // markers for the Fairy Souls on your island you haven't clicked yet (/nef souls)
+	boolean fairySoulCorner = true;
+	boolean dungeonChestProfit = true; // dungeon reward chests: profit of each, best one outlined, whether a key pays
+	boolean dungeonMap = true;        // dungeon map from your hotbar as a corner minimap (only what that map shows)
+	int dungeonMapSize = 100;         // minimap size in GUI pixels   // Fairy Soul count in the bottom-right corner of your inventory        // markers for the Fairy Souls on your island you haven't clicked yet (/nef souls)
 	boolean tradeCheck = true;        // player trade menu: what each side is worth and the difference
 	boolean listPriceFill = true;     // Create BIN Auction: show a suggested price and fill it into the price sign
 	boolean undercutAlerts = true;    // chat alert when someone lists a copy as good as yours for less than your BIN
