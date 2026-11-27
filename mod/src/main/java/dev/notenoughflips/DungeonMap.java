@@ -75,7 +75,7 @@ final class DungeonMap {
 	private static void paint(Highlight.Painter p) {
 		if (cfg == null || !cfg.dungeonMap) return;
 		Minecraft mc = Minecraft.getInstance();
-		if (BidHelper.currentScreen() != null || mc.options.hideGui) return;
+		if (BidHelper.currentScreen() != null) return;                        // F1 hides HUD layers by itself
 		MapItemSavedData d = data();
 		if (d == null) return;
 		byte[] colors = d.colors;
